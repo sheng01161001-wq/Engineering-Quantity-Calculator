@@ -1,5 +1,5 @@
 // 工程數量計算機 離線快取。更新內容時把版本號 +1。
-const CACHE = 'qcalc-v4';
+const CACHE = 'qcalc-v5';
 const FILES = ['./', './index.html', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', e => {
