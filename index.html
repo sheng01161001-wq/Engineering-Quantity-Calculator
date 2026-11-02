@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>工程數量計算機</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f3f1ec; --card:#ffffff; --ink:#1d1f22; --muted:#6b6f76; --line:#e2ded5;
+  --accent:#e8590c; --accent-soft:#fff1e8; --steel:#2f4858; --ok:#2b8a3e;
+  --r:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Noto Sans TC",system-ui,-apple-system,sans-serif;font-size:16px}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(24px + env(safe-area-inset-bottom)) env(safe-area-inset-left)}
+.wrap{max-width:560px;margin:0 auto;padding:12px 14px}
+header{display:flex;align-items:center;gap:10px;padding:6px 2px 12px}
+.logo{width:38px;height:38px;border-radius:10px;background:var(--steel);display:grid;place-items:center}
+header h1{font-size:20px;margin:0;font-weight:900;letter-spacing:.5px}
+header p{margin:0;font-size:12px;color:var(--muted)}
+.tabs{display:grid;grid-template-columns:1fr 1fr;background:#e4e0d7;border-radius:12px;padding:4px;gap:4px;position:sticky;top:0;z-index:5}
+.tabs button{border:0;background:transparent;padding:11px 6px;border-radius:9px;font:inherit;font-weight:700;color:var(--muted);font-size:15px}
+.tabs button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.tabs small{display:block;font-weight:400;font-size:11px}
+.card{background:var(--card);border-radius:var(--r);padding:14px;margin-top:12px;border:1px solid var(--line)}
+.card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.card h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.grid.g3{grid-template-columns:repeat(3,1fr)}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+input,select{width:100%;font:inherit;font-size:17px;padding:10px 10px;border:1.5px solid var(--line);border-radius:10px;background:#fbfaf7;color:var(--ink);appearance:none;-webkit-appearance:none}
+select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:28px;font-size:15px}
+input:focus,select:focus{outline:none;border-color:var(--accent);background:#fff}
+.dims input{font-size:22px;font-weight:700;text-align:center}
+.unitrow{display:flex;gap:6px;align-items:center;justify-content:space-between;margin-bottom:10px}
+.seg{display:inline-flex;background:#efece5;border-radius:9px;padding:3px}
+.seg button{border:0;background:transparent;font:inherit;font-size:13px;padding:5px 12px;border-radius:7px;color:var(--muted);font-weight:700}
+.seg button.on{background:var(--steel);color:#fff}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.stat{background:var(--steel);color:#fff;border-radius:12px;padding:12px}
+.stat.alt{background:var(--accent)}
+.stat .k{font-size:12px;opacity:.8}
+.stat .v{font-size:26px;font-weight:900;line-height:1.15;word-break:break-all}
+.stat .u{font-size:13px;font-weight:500;opacity:.85;margin-left:3px}
+.res{margin-top:12px;background:var(--accent-soft);border-radius:10px;padding:10px 12px}
+.row{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px dashed #f2cdb5;gap:8px}
+.row:last-child{border-bottom:0}
+.row span{color:#7a4a2a;font-size:14px}
+.row b{font-size:18px;font-weight:900;text-align:right}
+.row b small{font-size:12px;font-weight:500;color:#7a4a2a;margin-left:2px}
+.note{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+details.card summary{list-style:none;cursor:pointer;font-weight:700;font-size:15px;display:flex;justify-content:space-between;align-items:center}
+details.card summary::-webkit-details-marker{display:none}
+details.card summary:after{content:"＋";color:var(--accent);font-size:18px}
+details.card[open] summary:after{content:"－"}
+details.card[open] summary{margin-bottom:10px}
+.checks{display:flex;gap:14px;flex-wrap:wrap;font-size:14px}
+.checks label{display:flex;align-items:center;gap:6px;color:var(--ink);font-size:14px;margin:0}
+.checks input{width:20px;height:20px;accent-color:var(--accent);appearance:auto;-webkit-appearance:checkbox}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.btn{border:0;border-radius:12px;padding:14px;font:inherit;font-weight:700;font-size:15px;background:var(--steel);color:#fff}
+.btn.sec{background:#fff;color:var(--steel);border:1.5px solid var(--steel)}
+.btn:active{transform:scale(.98)}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(80px);background:#1d1f22;color:#fff;padding:10px 18px;border-radius:30px;font-size:14px;transition:.25s;opacity:0;z-index:20}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.hist-item{border-bottom:1px solid var(--line);padding:9px 0;font-size:13px;white-space:pre-wrap;line-height:1.5}
+.hist-item:last-child{border-bottom:0}
+.hist-item .t{color:var(--muted);font-size:11px}
+.empty{color:var(--muted);font-size:13px}
+.hidden{display:none}
+.linkbtn{border:0;background:none;color:var(--accent);font:inherit;font-size:13px;font-weight:700;padding:0}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;border:1.5px solid var(--line);background:#fbfaf7;border-radius:20px;padding:6px 12px;font:inherit;font-size:13px;color:var(--muted);font-weight:700}
+.chips button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.tbl{border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.tr{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 10px;border-bottom:1px solid var(--line);background:#fff}
+.tr:nth-child(even){background:#fbfaf7}
+.tr:last-child{border-bottom:0}
+.tr .n{font-size:14px;font-weight:700}
+.tr .q{font-size:17px;font-weight:900;text-align:right;white-space:nowrap}
+.tr .q small{font-size:12px;font-weight:500;color:var(--muted);margin-left:2px}
+.tr .m{font-size:11.5px;color:var(--muted)}
+.tr .o{font-size:12px;color:var(--accent);font-weight:700;text-align:right;white-space:nowrap}
+.tr.lab .n{color:var(--steel);font-weight:500}
+.tr.sum{background:var(--steel)!important;color:#fff}
+.tr.sum .m,.tr.sum .q small{color:#cfd8de}
+.li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.li b{font-size:13.5px}
+.li .x{border:0;background:#f3d9c9;color:#a33b00;border-radius:8px;width:30px;height:30px;font-size:16px;flex:none}
+.subh{font-size:13px;font-weight:700;margin:14px 0 6px;color:var(--steel)}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2f4858">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="工程數量計算">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6"/></svg>
+    </div>
+    <div>
+      <h1>工程數量計算機</h1>
+      <p>輸入尺寸 → 面積、鋼筋、磁磚、混凝土、泥作工項用量</p>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button id="tabA" class="on" onclick="setMode('A')">面積<small>長 × 寬</small></button>
+    <button id="tabV" onclick="setMode('V')">體積<small>長 × 寬 × 高</small></button>
+  </div>
+
+  <!-- 尺寸輸入 -->
+  <div class="card" id="dimCard">
+    <div class="unitrow">
+      <h2 style="margin:0"><span class="dot"></span>尺寸</h2>
+      <div class="seg hidden" id="inSeg">
+        <button data-i="dim" class="on">長×寬</button>
+        <button data-i="m2">直接輸入 m²</button>
+      </div>
+      <div class="seg" id="unitSeg">
+        <button data-u="m" class="on">公尺 m</button>
+        <button data-u="cm">公分 cm</button>
+      </div>
+    </div>
+    <div class="unitrow hidden" id="unitRow2" style="justify-content:flex-end;margin-top:-2px"></div>
+    <div class="grid dims" id="dimGrid">
+      <div id="M2box" class="hidden" style="grid-column:1/-1"><label>面積 m²</label><input id="M2" type="number" inputmode="decimal" placeholder="0"></div>
+      <div id="Lbox"><label>長</label><input id="L" type="number" inputmode="decimal" placeholder="0"></div>
+      <div id="Wbox"><label id="Wlab">寬</label><input id="W" type="number" inputmode="decimal" placeholder="0"></div>
+      <div id="Hbox" class="hidden"><label id="Hlabel">高 / 厚 / 深</label><input id="H" type="number" inputmode="decimal" placeholder="0"></div>
+      <div><label>相同數量（處）</label><input id="N" type="number" inputmode="numeric" value="1"></div>
+    </div>
+    <div class="big" id="bigA">
+      <div class="stat"><div class="k">面積</div><div class="v"><span id="oArea">0</span><span class="u">m²</span></div></div>
+      <div class="stat alt"><div class="k">坪數</div><div class="v"><span id="oPing">0</span><span class="u">坪</span></div></div>
+    </div>
+    <div class="big hidden" id="bigV">
+      <div class="stat"><div class="k">體積</div><div class="v"><span id="oVol">0</span><span class="u">m³</span></div></div>
+      <div class="stat alt"><div class="k">底面積</div><div class="v"><span id="oBase">0</span><span class="u">m²</span></div></div>
+    </div>
+  </div>
+
+  <!-- ===== 面積模式 ===== -->
+  <div id="modeA">
+    <div class="card">
+      <h2><span class="dot"></span>工項用量</h2>
+      <div class="chips" id="wCats"></div>
+      <select id="wItem" style="margin-top:10px"></select>
+      <div class="grid" style="margin-top:10px">
+        <div><label>扣除開口 m²（門窗）</label><input id="wOpen" type="number" inputmode="decimal" placeholder="0"></div>
+        <div><label>施作數量</label><div class="stat" style="padding:8px 10px;border-radius:10px"><div class="v" style="font-size:20px"><span id="wAmt">0</span><span class="u" id="wAmtU">m²</span></div></div></div>
+      </div>
+      <div class="note" id="wNote"></div>
+      <div class="tbl" id="wTable" style="margin-top:10px"></div>
+      <div class="note">「叫料」為整包、整塊進位後的數量；損耗已含在用量中。</div>
+      <button class="btn" style="width:100%;margin-top:12px" onclick="addToList()">＋ 加入清單（合併計算）</button>
+    </div>
+    <details class="card" id="listCard">
+      <summary>工項清單 <span id="listCount" style="color:var(--muted);font-weight:400;font-size:13px;margin-left:auto;margin-right:8px"></span></summary>
+      <div id="listBody"></div>
+    </details>
+    <details class="card">
+      <summary>鋼筋用量（網狀配筋）</summary>
+      <div class="grid">
+        <div><label>鋼筋號數</label><select id="rBar"></select></div>
+        <div><label>間距 cm</label><input id="rSp" type="number" inputmode="decimal" value="20"></div>
+        <div><label>配筋層數</label>
+          <select id="rLayer"><option value="1">單層</option><option value="2">雙層</option></select></div>
+        <div><label>搭接＋損耗 %</label><input id="rLap" type="number" inputmode="decimal" value="10"></div>
+      </div>
+      <div class="res">
+        <div class="row"><span>鋼筋根數（雙向）</span><b id="oBars">0<small>根</small></b></div>
+        <div class="row"><span>總長度</span><b id="oRLen">0<small>m</small></b></div>
+        <div class="row"><span>總重量</span><b id="oRKg">0<small>kg</small></b></div>
+        <div class="row"><span>約合</span><b id="oRTon">0<small>噸</small></b></div>
+        <div class="row"><span>換算 12m 定尺</span><b id="oR12">0<small>支</small></b></div>
+      </div>
+      <div class="note">雙向配筋：長向、寬向各一組。根數＝邊長 ÷ 間距 ＋ 1。</div>
+    </details>
+
+  </div>
+
+  <!-- ===== 體積模式 ===== -->
+  <div id="modeV" class="hidden">
+    <details class="card" open>
+      <summary>混凝土數量</summary>
+      <div class="grid">
+        <div><label>損耗 %</label><input id="cLoss" type="number" inputmode="decimal" value="3"></div>
+        <div><label>每車方數 m³</label><input id="cTruck" type="number" inputmode="decimal" value="6"></div>
+      </div>
+      <div class="res">
+        <div class="row"><span>混凝土（含損耗）</span><b id="oCon">0<small>m³</small></b></div>
+        <div class="row"><span>建議叫料（取 0.5 方）</span><b id="oConOrder">0<small>m³</small></b></div>
+        <div class="row"><span>預拌車</span><b id="oConTruck">0<small>車</small></b></div>
+      </div>
+    </details>
+
+    <details class="card" open>
+      <summary>鋼筋用量（含筋率估算）</summary>
+      <div class="grid">
+        <div><label>構件類型</label>
+          <select id="vType">
+            <option value="90">樓板（約 90 kg/m³）</option>
+            <option value="180">梁（約 180 kg/m³）</option>
+            <option value="220">柱（約 220 kg/m³）</option>
+            <option value="90">牆（約 90 kg/m³）</option>
+            <option value="100" selected>基礎 / 筏基（約 100 kg/m³）</option>
+            <option value="custom">自訂</option>
+          </select></div>
+        <div><label>含筋率 kg/m³</label><input id="vRate" type="number" inputmode="decimal" value="100"></div>
+      </div>
+      <div class="res">
+        <div class="row"><span>鋼筋重量</span><b id="oVKg">0<small>kg</small></b></div>
+        <div class="row"><span>約合</span><b id="oVTon">0<small>噸</small></b></div>
+      </div>
+      <div class="note">含筋率為一般經驗值，實際請以結構圖計算為準。</div>
+    </details>
+
+    <details class="card" open>
+      <summary>廢棄物 / 土方清運</summary>
+      <div class="grid">
+        <div><label>材料類型</label>
+          <select id="wType">
+            <option value="1.4|2.4">RC / 混凝土拆除</option>
+            <option value="1.4|1.8">磚造拆除</option>
+            <option value="1.5|1.6" selected>混合營建廢棄物</option>
+            <option value="1.25|1.8">土方開挖</option>
+            <option value="1.2|1.6">砂石</option>
+          </select></div>
+        <div><label>鬆方係數</label><input id="wSwell" type="number" inputmode="decimal" value="1.5"></div>
+        <div><label>單位重 t/m³（實方）</label><input id="wDen" type="number" inputmode="decimal" value="1.6"></div>
+        <div><label>車型</label>
+          <select id="wTruck">
+            <option value="2|3">3.5 噸小貨車</option>
+            <option value="6|8">11 噸貨車</option>
+            <option value="12|20" selected>砂石車 / 大卡車</option>
+            <option value="custom">自訂</option>
+          </select></div>
+        <div><label>每車容量 m³</label><input id="wCapV" type="number" inputmode="decimal" value="12"></div>
+        <div><label>每車載重 噸</label><input id="wCapT" type="number" inputmode="decimal" value="20"></div>
+      </div>
+      <div class="res">
+        <div class="row"><span>實方體積</span><b id="oWSolid">0<small>m³</small></b></div>
+        <div class="row"><span>鬆方體積（清運量）</span><b id="oWLoose">0<small>m³</small></b></div>
+        <div class="row"><span>重量</span><b id="oWTon">0<small>噸</small></b></div>
+        <div class="row"><span>清運車次</span><b id="oWTrip">0<small>車次</small></b></div>
+      </div>
+      <div class="note">車次取「容量」與「載重」兩者較多者，避免超載。車型數值為一般參考，請依合作車行調整。</div>
+    </details>
+  </div>
+
+  <div class="actions">
+    <button class="btn" onclick="copyResult()">複製結果</button>
+    <button class="btn sec" onclick="saveResult()">存入紀錄</button>
+  </div>
+
+  <details class="card" id="histCard">
+    <summary>計算紀錄</summary>
+    <div id="histList"><div class="empty">尚無紀錄</div></div>
+    <div style="margin-top:8px;text-align:right"><button class="linkbtn" onclick="clearHist()">清除全部紀錄</button></div>
+  </details>
+
+  <div class="note" style="text-align:center;margin-top:14px">
+    <button class="btn" id="installBtn" style="display:none;width:100%;margin-bottom:10px">📲 安裝到手機</button>
+    <span id="installTip">Android：瀏覽器選單 →「安裝應用程式」／iPhone：Safari 分享鈕 →「加入主畫面」</span>
+    <div style="margin-top:6px;opacity:.7">版本 v2</div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const BARS = [
+  ["#3 (D10)",0.560],["#4 (D13)",0.994],["#5 (D16)",1.56],["#6 (D19)",2.25],
+  ["#7 (D22)",3.04],["#8 (D25)",3.98],["#9 (D29)",5.08],["#10 (D32)",6.39]
+];
+const $ = id => document.getElementById(id);
+const WI = [{"c":"地磚","t":"60×120地磚（軟底，含5cm砂漿）","L":[["水泥(40kg)","包",0.45937,"1M3砂/7包水泥"],["細砂","M3",0.0525,"平均厚度5公分"],["磁磚 60×120","塊",1.66667,"20%損耗"],["磁磚黏著劑(25kg)","包",0.10101,""],["填縫劑(10kg)","包",0.01263,""],["PE保護板","片",0.744,""]]},{"c":"地磚","t":"60×120地磚（硬底，大廳）","L":[["水泥(40kg)","包",0.30303,"1包水泥/3.3M2"],["細砂","M3",0.0525,"平均厚度5公分"],["界面接著劑","桶",0.02,""],["磁磚 60×120","塊",1.52778,""],["磁磚黏著劑(25kg)","包",0.3,"1包約1坪"],["填縫劑(10kg)","包",0.01515,""],["PE保護板","片",0.744,""]]},{"c":"地磚","t":"60×60地磚（硬底）","L":[["水泥(40kg)","包",0.30303,"1包水泥/3.3M2"],["細砂","M3",0.0525,"平均厚度5公分"],["界面接著劑","桶",0.02,""],["磁磚 60×60","塊",3.05556,""],["磁磚黏著劑(25kg)","包",0.04329,""],["填縫劑(10kg)","包",0.01515,""],["PE保護板","片",0.744,""]]},{"c":"地磚","t":"45×90止滑地磚（1:3砂漿）","L":[["水泥(40kg)","包",0.378,"1M3砂/9包水泥"],["細砂","M3",0.042,"平均厚度4公分"],["打底黏著劑(25kg)","包",0.07,""],["磁磚 45×90","塊",2.83951,"15%損耗"],["填縫劑(25kg)","包",0.02,""]]},{"c":"地磚","t":"30×30止滑地磚（1:3砂漿）","L":[["水泥(40kg)","包",0.378,"1M3砂/9包水泥"],["細砂","M3",0.042,"平均厚度4公分"],["打底黏著劑(25kg)","包",0.07,""],["磁磚 30×30","塊",12,"8%損耗"],["填縫劑(25kg)","包",0.02,""]]},{"c":"地磚","t":"20×20止滑地磚（1:3砂漿）","L":[["水泥(40kg)","包",0.378,"1M3砂/9包水泥"],["細砂","M3",0.042,"平均厚度4公分"],["打底黏著劑(25kg)","包",0.07,""],["磁磚 20×20","塊",27,"8%損耗"],["填縫劑(25kg)","包",0.02,""]]},{"c":"地磚","t":"10×20地磚（硬底）","L":[["磁磚 10×20","塊",50,"5%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.08918,""]]},{"c":"地磚","t":"10×10地磚（硬底）","L":[["磁磚 10×10","塊",86.77686,"5%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.08918,""]]},{"c":"壁磚","t":"60×120壁磚","L":[["磁磚 60×120","片",1.66667,"20%損耗"],["磁磚黏著劑(25kg)","包",0.33,""],["填縫劑(10kg)","包",0.02601,""],["磁磚清潔劑(5加侖)","桶",0.00222,""]],"n":"打底另計，可再加「內牆1:3水泥打底」"},{"c":"壁磚","t":"45×90壁磚","L":[["磁磚 45×90","塊",2.83951,"15%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.02601,""],["磁磚清潔劑(5加侖)","桶",0.00222,""]],"n":"打底另計，可再加「內牆1:3水泥打底」"},{"c":"壁磚","t":"30×60壁磚","L":[["磁磚 30×60","塊",6.11111,"10%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.02601,""],["磁磚清潔劑(5加侖)","桶",0.00222,""]],"n":"打底另計，可再加「內牆1:3水泥打底」"},{"c":"壁磚","t":"20×20壁磚","L":[["磁磚 20×20","塊",26.25,"5%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.08918,""]],"n":"打底另計，可再加「內牆1:3水泥粉刷」"},{"c":"外牆","t":"外牆不鏽鋼鐵件乾掛石材(T=3CM)","L":[["石材(T=3cm)","才",1,""],["石材磨小邊","米",0.12,""]],"su":"才"},{"c":"外牆","t":"外牆1:3砂漿打底貼二丁掛磚 6×22.7","L":[["水泥(40kg)","包",0.352,"1M3砂配11包水泥"],["細砂","M3",0.032,"平均厚度3公分"],["打底黏著劑(25kg)","包",0.1,""],["二丁掛磚 6×22.7","支",68.0228,"5%損耗"],["磁磚黏著劑(25kg)","包",0.11,""],["填縫劑(25kg)","包",0.11,""],["磁磚清潔劑(5加侖)","桶",0.00606,""]]},{"c":"外牆","t":"外牆1:3砂漿打底貼木紋磚 15×45","L":[["水泥(40kg)","包",0.35437,"1M3砂配9包水泥"],["細砂","M3",0.0315,"平均厚度3公分"],["打底黏著劑(25kg)","包",0.1,""],["木紋磚 15×45","塊",16.2963,"10%損耗"],["磁磚黏著劑(25kg)","包",0.33,""],["填縫劑(25kg)","包",0.1,""],["磁磚清潔劑(5加侖)","桶",0.00606,""]]},{"c":"外牆","t":"外牆1:3砂漿打底粉光（仿石材塗料面）","L":[["水泥(40kg)","包",0.35437,"1M3砂配9包水泥"],["細砂","M3",0.0315,"平均厚度3公分"],["打底黏著劑(25kg)","包",0.1,""],["粉光材(40kg)","包",0.12875,""],["仿石材塗料","m²",1,""]]},{"c":"內牆","t":"內牆1:3水泥粉刷（打底＋粉光）","L":[["水泥(40kg)","包",0.2575,"1M3砂配8包水泥"],["細砂","M3",0.02575,"平均厚度2.5公分"],["打底黏著劑(25kg)","包",0.1,""],["粉光材(40kg)","包",0.12875,""]]},{"c":"內牆","t":"內牆1:3水泥打底","L":[["水泥(40kg)","包",0.2575,"1M3砂配8包水泥"],["細砂","M3",0.02575,"平均厚度2.5公分"],["打底黏著劑(25kg)","包",0.1,""]]},{"c":"內牆","t":"防水粉刷（1:2砂漿＋防水劑）","L":[["水泥(40kg)","包",0.28,""],["細砂","M3",0.031,""],["打底黏著劑(25kg)","包",0.1,""],["防水劑","桶",0.038,""]]},{"c":"地坪打底","t":"地坪水泥砂漿打底（5cm）","L":[["水泥(40kg)","包",0.45937,"1M3砂/7包水泥"],["細砂","M3",0.0525,"平均厚度5公分"],["磁磚黏著劑(25kg)","包",0.04329,""]]},{"c":"地坪打底","t":"車道地坪二次澆置RC及整平","L":[["混凝土 3000psi","M3",0.1,""],["點焊鋼絲網(2×3m)","件",0.18333,""]]},{"c":"樓梯","t":"樓梯 20×20止滑石英磚","L":[["水泥(40kg)","包",0.30303,"1包水泥/3.3M2"],["細砂","M3",0.042,"平均厚度4公分"],["磁磚 20×20","塊",26.25,"5%損耗"],["磁磚黏著劑(25kg)","包",0.04329,""],["填縫劑(10kg)","包",0.01515,""]]},{"c":"樓梯","t":"樓梯 20×27止滑石英磚","L":[["水泥(40kg)","包",0.30303,"1包水泥/3.3M2"],["細砂","M3",0.042,"平均厚度4公分"],["磁磚 20×27","塊",22.82609,"5%損耗"],["磁磚黏著劑(25kg)","包",0.04329,""],["填縫劑(10kg)","包",0.01515,""]]},{"c":"隔間 / 砌磚","t":"砌1B磚牆","L":[["紅磚","塊",160,""],["水泥(40kg)","包",0.4,""],["細砂","M3",0.05714,""],["磁磚 ","塊",160,""]]},{"c":"隔間 / 砌磚","t":"砌1/2B磚牆","L":[["紅磚","塊",78,""],["水泥(40kg)","包",0.195,""],["細砂","M3",0.0325,""],["磁磚 ","塊",78,""]]},{"c":"隔間 / 砌磚","t":"濕式灌漿輕隔間牆 C75","L":[["輕隔間牆(雙面6mm板)","m²",1,""],["輕隔間灌漿材","包",1.43,""]]},{"c":"隔間 / 砌磚","t":"濕式灌漿輕隔間牆 C92（H型骨架）","L":[["輕隔間牆(雙面6mm板)","m²",1,""],["輕隔間灌漿材","包",1.43,""]]},{"c":"隔間 / 砌磚","t":"乾式輕隔間牆 C75","L":[["輕隔間牆(填充24K玻璃棉)","m²",1,""]]},{"c":"油漆","t":"室內牆面 批土＋水泥漆","L":[["批土（2道）","m²",1,""],["磨平","m²",1,""],["水泥漆（2遍）","m²",1,""],["水泥漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"地下室牆面 批土＋水泥漆（分色帶）","L":[["批土（2道）","m²",1,""],["磨平","m²",1,""],["水泥漆（2遍）","m²",1,""],["水泥漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"輕隔間牆 整平批土＋水泥漆","L":[["接縫處理（AB膠＋玻纖網＋白土）","m²",1,""],["批土（2次）","m²",1,""],["水泥漆（噴1遍＋刷1遍）","m²",1,""],["水泥漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"輕隔間牆 整平批土（浴室內牆，不含漆）","L":[["接縫處理（AB膠＋玻纖網＋白土）","m²",1,""],["批土（2次）","m²",1,""]]},{"c":"油漆","t":"車道樑面 批土＋黑色塗料","L":[["批土（2道）","m²",1,""],["磨平","m²",1,""],["黑色塗料（2遍）","m²",1,""],["黑色塗料用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"室內平頂 磨平批土＋水泥漆","L":[["水泥(40kg)","包",0.01,"1包約45坪"],["機械磨光","m²",1,""],["批土（黑土＋白土）","m²",1,""],["磨平","m²",1,""],["水泥漆（2遍）","m²",1,""],["水泥漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"車道平頂 磨平批土＋黑色塗料","L":[["水泥(40kg)","包",0.01,"1包約45坪"],["機械磨光","m²",1,""],["批土（黑土＋白土）","m²",1,""],["磨平","m²",1,""],["黑色塗料（2遍）","m²",1,""],["黑色塗料用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"陽台平頂 磨平批土＋晴雨漆","L":[["機械磨光","m²",1,""],["批土（黑土＋白土）","m²",1,""],["磨平","m²",1,""],["晴雨漆（2遍）","m²",1,""],["晴雨漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]}];
+let mode = 'A', unit = 'm', inMode = 'dim';
+
+const rb = $('rBar');
+BARS.forEach((b,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`${b[0]}　${b[1]} kg/m`;if(i===1)o.selected=true;rb.appendChild(o)});
+
+function num(id){const v=parseFloat($(id).value);return isFinite(v)?v:0}
+function toM(v){return unit==='cm'?v/100:v}
+function f(v,d=2){if(!isFinite(v))return '0';return Number(v.toFixed(d)).toLocaleString('zh-TW',{maximumFractionDigits:d})}
+function set(id,v,u){$(id).innerHTML=v+(u?`<small>${u}</small>`:'')}
+
+function store(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function load(k){try{return localStorage.getItem(k)}catch(e){return null}}
+
+function setMode(m){
+  mode=m;
+  $('tabA').classList.toggle('on',m==='A');$('tabV').classList.toggle('on',m==='V');
+  $('modeA').classList.toggle('hidden',m!=='A');$('modeV').classList.toggle('hidden',m!=='V');
+  $('bigA').classList.toggle('hidden',m!=='A');$('bigV').classList.toggle('hidden',m!=='V');
+  $('Hbox').classList.toggle('hidden',m!=='V');
+  $('inSeg').classList.toggle('hidden',m!=='A');applyIn();
+
+  $('dimGrid').classList.toggle('g3',false);
+  store('qc_mode',m);calc();
+}
+
+function applyIn(){
+  const m2=mode==='A'&&inMode==='m2';
+  $('M2box').classList.toggle('hidden',!m2);$('Lbox').classList.toggle('hidden',m2);$('Wbox').classList.toggle('hidden',m2);
+  $('unitSeg').classList.toggle('hidden',m2);
+  [...$('inSeg').children].forEach(x=>x.classList.toggle('on',x.dataset.i===inMode));
+}
+$('inSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;inMode=b.dataset.i;store('qc_in',inMode);applyIn();calc();});
+if(load('qc_in')==='m2')inMode='m2';
+$('unitSeg').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  unit=b.dataset.u;[...$('unitSeg').children].forEach(x=>x.classList.toggle('on',x===b));
+  store('qc_unit',unit);calc();
+});
+
+/* presets */
+$('vType').addEventListener('change',()=>{if($('vType').value!=='custom')$('vRate').value=$('vType').value;calc()});
+$('vRate').addEventListener('input',()=>{$('vType').value='custom'});
+$('wType').addEventListener('change',()=>{const [s,d]=$('wType').value.split('|');$('wSwell').value=s;$('wDen').value=d;calc()});
+$('wTruck').addEventListener('change',()=>{const v=$('wTruck').value;if(v!=='custom'){const [a,b]=v.split('|');$('wCapV').value=a;$('wCapT').value=b}calc()});
+['wCapV','wCapT'].forEach(id=>$(id).addEventListener('input',()=>{$('wTruck').value='custom'}));
+
+let last = {};
+function calc(){
+  const L=toM(num('L')),W=toM(num('W')),H=toM(num('H'));
+  const N=Math.max(1,Math.round(num('N'))||1);
+  const useM2=mode==='A'&&inMode==='m2';
+  const area=useM2?Math.max(0,num('M2'))*N:L*W*N;
+  last={L,W,H,N,area,useM2};
+  if(mode==='A'){
+    $('oArea').textContent=f(area);$('oPing').textContent=f(area*0.3025);
+    calcW(area);
+    // rebar mesh
+    const s=num('rSp')/100,layers=+$('rLayer').value,lap=num('rLap')/100;
+    const bar=BARS[+rb.value];
+    let nL=0,nW=0,len=0;
+    if(useM2){if(s>0)len=area*(2/s)*layers*(1+lap)}
+    else if(s>0&&L>0&&W>0){nL=Math.floor(W/s)+1;nW=Math.floor(L/s)+1;len=(nL*L+nW*W)*layers*N*(1+lap)}
+    const kg=len*bar[1];
+    set('oBars',useM2?'—':f((nL+nW)*layers*N,0),useM2?'':'根');set('oRLen',f(len,1),'m');
+    set('oRKg',f(kg,1),'kg');set('oRTon',f(kg/1000,3),'噸');set('oR12',f(Math.ceil(len/12),0),'支');
+  } else {
+    const vol=L*W*H*N;
+    $('oVol').textContent=f(vol,3);$('oBase').textContent=f(area);
+    const con=vol*(1+num('cLoss')/100);const order=Math.ceil(con*2)/2;
+    const tr=num('cTruck');
+    set('oCon',f(con,2),'m³');set('oConOrder',f(order,1),'m³');set('oConTruck',f(tr>0?Math.ceil(order/tr):0,0),'車');
+    const vkg=vol*num('vRate');set('oVKg',f(vkg,0),'kg');set('oVTon',f(vkg/1000,2),'噸');
+    const loose=vol*num('wSwell'),ton=vol*num('wDen');
+    const cv=num('wCapV'),ct=num('wCapT');
+    const trips=vol>0?Math.max(cv>0?Math.ceil(loose/cv):0,ct>0?Math.ceil(ton/ct):0):0;
+    set('oWSolid',f(vol,2),'m³');set('oWLoose',f(loose,2),'m³');set('oWTon',f(ton,2),'噸');set('oWTrip',f(trips,0),'車次');
+    Object.assign(last,{vol,con,order,ctr:tr>0?Math.ceil(order/tr):0,vkg,loose,ton,trips,
+      wname:$('wType').selectedOptions[0].textContent});
+  }
+}
+
+function summary(){
+  const u=unit==='cm'?100:1, un=unit;
+  const d=v=>f(v*u,2)+un;
+  let s;
+  if(mode==='A'){
+    s=`【面積計算】${last.useM2?f(num('M2'))+' m²':d(last.L)+' × '+d(last.W)}${last.N>1?' × '+last.N+'處':''}
+面積：${f(last.area)} m²（${f(last.area*0.3025)} 坪）`;
+    if(wLast){s+=`
+
+【${wLast.it.t}】${num('wOpen')>0?'扣開口 '+f(num('wOpen'))+'m²，':''}施作 ${f(wLast.amt,2)} ${wLast.it.su==='才'?'才':'m²'}
+`+wLast.ls.map(lineTxt).join('\n');}
+  } else {
+    s=`【體積計算】${d(last.L)} × ${d(last.W)} × ${d(last.H)}${last.N>1?' × '+last.N+'處':''}
+體積：${f(last.vol,3)} m³
+混凝土（含損耗）：${f(last.con)} m³，叫料 ${f(last.order,1)} m³，${last.ctr} 車
+鋼筋（${$('vRate').value} kg/m³）：${f(last.vkg,0)} kg（${f(last.vkg/1000,2)} 噸）
+清運（${last.wname}）：鬆方 ${f(last.loose)} m³，${f(last.ton)} 噸，${last.trips} 車次`;
+  }
+  return s;
+}
+
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),1800)}
+async function copyResult(){
+  const s=summary();
+  try{await navigator.clipboard.writeText(s);toast('已複製，可貼到 LINE')}
+  catch(e){
+    const ta=document.createElement('textarea');ta.value=s;document.body.appendChild(ta);ta.select();
+    let ok=false;try{ok=document.execCommand('copy')}catch(_){}ta.remove();
+    toast(ok?'已複製':'無法複製，請改用存入紀錄');
+  }
+}
+
+
+
+/* ===== 工項用量（依單價分析，僅用量） ===== */
+const WCATS=[...new Set(WI.map(x=>x.c))];
+const ROUNDU=['包','塊','片','支','桶','才','件'];
+let wCat=WCATS[0],wList=[],wLast=null;
+try{wList=JSON.parse(load('qc_wlist2')||'[]')}catch(e){wList=[]}
+function fillW(keep){
+  const sel=$('wItem');sel.innerHTML='';
+  WI.forEach((x,i)=>{if(x.c!==wCat)return;const o=document.createElement('option');o.value=i;o.textContent=x.t;sel.appendChild(o)});
+  if(keep!=null&&sel.querySelector(`option[value="${keep}"]`))sel.value=keep;
+}
+function initW(){
+  const si=load('qc_witem');if(si!==null&&WI[+si])wCat=WI[+si].c;
+  $('wCats').innerHTML=WCATS.map(c=>`<button data-c="${c}" class="${c===wCat?'on':''}">${c}</button>`).join('');
+  $('wCats').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;wCat=b.dataset.c;
+    [...$('wCats').children].forEach(x=>x.classList.toggle('on',x===b));fillW();store('qc_witem',$('wItem').value);calc();});
+  $('wItem').addEventListener('change',()=>{store('qc_witem',$('wItem').value);calc()});
+  fillW(si);renderList();
+}
+function wLines(it,m2){
+  const amt=it.su==='才'?m2*10.89:m2;
+  return {amt,ls:it.L.map(([n,u,q,note])=>{const tq=q*amt;return {n,u,tq,note,r:ROUNDU.includes(u)?Math.ceil(tq-1e-9):null}})};
+}
+function qf(v,u){return f(v,/M3/i.test(u)?3:(v<10?2:1))}
+function rowHTML(l){return `<div class="tr"><div class="n">${l.n}</div><div class="q">${qf(l.tq,l.u)}<small>${l.u}</small></div>
+  <div class="m">${l.note||''}</div><div class="o">${l.r!==null?'叫料 '+f(l.r,0)+' '+l.u:''}</div></div>`}
+function calcW(m2raw){
+  const it=WI[+$('wItem').value];if(!it)return;
+  const isWall=/壁磚|外牆|內牆|隔間|油漆/.test(it.c)&&!/平頂/.test(it.t);
+  $('Wlab').textContent=isWall?'高':'寬';
+  const m2=Math.max(0,m2raw-num('wOpen'));
+  const {amt,ls}=wLines(it,m2);
+  $('wAmt').textContent=f(amt,2);$('wAmtU').textContent=it.su==='才'?'才':'m²';
+  $('wNote').textContent=(it.su==='才'?`= ${f(m2)} m²（1 m² ≈ 10.89 才）　`:'')+(it.n||'');
+  $('wTable').innerHTML=ls.map(rowHTML).join('');
+  wLast={it,i:+$('wItem').value,amt,m2,ls};
+}
+function addToList(){
+  if(!wLast||wLast.m2<=0){toast('請先輸入長、寬/高');return}
+  const u=unit==='cm'?100:1;
+  wList.push({i:wLast.i,m2:wLast.m2,d:`${last.useM2?f(num('M2'))+'m²':f(last.L*u,2)+'×'+f(last.W*u,2)+unit}${last.N>1?' ×'+last.N+'處':''}${num('wOpen')>0?' −'+f(num('wOpen'))+'m²':''}`});
+  store('qc_wlist2',JSON.stringify(wList));renderList();$('listCard').open=true;toast('已加入清單');
+}
+function delList(k){wList.splice(k,1);store('qc_wlist2',JSON.stringify(wList));renderList()}
+function aggList(){
+  const m=new Map();
+  wList.forEach(e=>{const it=WI[e.i];if(!it)return;wLines(it,e.m2).ls.forEach(l=>{
+    const key=l.n+'|'+l.u;const o=m.get(key)||{n:l.n,u:l.u,tq:0};o.tq+=l.tq;m.set(key,o)})});
+  return [...m.values()].map(o=>({...o,r:ROUNDU.includes(o.u)?Math.ceil(o.tq-1e-9):null}));
+}
+function renderList(){
+  $('listCount').textContent=wList.length?wList.length+' 項':'';
+  if(!wList.length){$('listBody').innerHTML='<div class="empty">把多個工項加入清單，可合併算出總用量（例如：浴室＝內牆打底＋壁磚＋地磚）。</div>';return}
+  $('listBody').innerHTML=wList.map((e,k)=>{const it=WI[e.i];const a=it.su==='才'?e.m2*10.89:e.m2;
+    return `<div class="li"><div><b>${it.t}</b><br><span style="color:var(--muted)">${e.d}＝${f(a,2)} ${it.su==='才'?'才':'m²'}</span></div><button class="x" onclick="delList(${k})">✕</button></div>`}).join('')
+   +`<div class="subh">合併總用量</div><div class="tbl">`+aggList().map(l=>rowHTML(l)).join('')+`</div>
+   <div class="actions"><button class="btn" onclick="copyList()">複製清單</button><button class="btn sec" onclick="wList=[];store('qc_wlist2','[]');renderList()">清空清單</button></div>`;
+}
+function lineTxt(l){return `・${l.n}：${qf(l.tq,l.u)} ${l.u}${l.r!==null?'（叫料 '+l.r+'）':''}`}
+async function copyList(){
+  const s='【工項清單】\n'+wList.map(e=>{const it=WI[e.i];return `・${it.t}：${e.d}＝${f(it.su==='才'?e.m2*10.89:e.m2,2)} ${it.su==='才'?'才':'m²'}`}).join('\n')
+   +'\n\n【合併總用量】\n'+aggList().map(lineTxt).join('\n');
+  await copyText(s,'已複製清單');
+}
+async function copyText(s,msg){
+  try{await navigator.clipboard.writeText(s);toast(msg)}catch(e){
+    const ta=document.createElement('textarea');ta.value=s;document.body.appendChild(ta);ta.select();
+    let ok=false;try{ok=document.execCommand('copy')}catch(_){}ta.remove();toast(ok?msg:'無法複製');}
+}
+
+let hist=[];try{hist=JSON.parse(load('qc_hist')||'[]')}catch(e){hist=[]}
+function renderHist(){
+  const el=$('histList');
+  if(!hist.length){el.innerHTML='<div class="empty">尚無紀錄</div>';return}
+  el.innerHTML=hist.map(h=>`<div class="hist-item"><div class="t">${h.t}</div>${h.s.replace(/</g,'&lt;')}</div>`).join('');
+}
+function saveResult(){
+  const now=new Date();
+  hist.unshift({t:now.toLocaleString('zh-TW',{hour12:false}),s:summary()});
+  hist=hist.slice(0,30);store('qc_hist',JSON.stringify(hist));renderHist();
+  $('histCard').open=true;toast('已存入紀錄');
+}
+function clearHist(){hist=[];store('qc_hist','[]');renderHist()}
+
+document.querySelectorAll('input,select').forEach(el=>{el.addEventListener('input',calc);el.addEventListener('change',calc)});
+
+const su=load('qc_unit');if(su==='cm'){unit='cm';[...$('unitSeg').children].forEach(x=>x.classList.toggle('on',x.dataset.u==='cm'))}
+renderHist();
+initW();
+setMode(load('qc_mode')==='V'?'V':'A');
+/* PWA */
+if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').style.display='block'});
+$('installBtn').addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();try{await deferredPrompt.userChoice}catch(_){}deferredPrompt=null;$('installBtn').style.display='none'});
+if(window.matchMedia&&matchMedia('(display-mode: standalone)').matches){$('installTip').style.display='none'}
+</script>
+</body>
+</html>
