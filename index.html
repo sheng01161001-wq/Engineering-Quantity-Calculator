@@ -92,6 +92,10 @@ details.card[open] summary{margin-bottom:10px}
 .li b{font-size:13.5px}
 .li .x{border:0;background:#f3d9c9;color:#a33b00;border-radius:8px;width:30px;height:30px;font-size:16px;flex:none}
 .subh{font-size:13px;font-weight:700;margin:14px 0 6px;color:var(--steel)}
+.modal{position:fixed;inset:0;background:rgba(20,24,28,.45);display:flex;align-items:flex-end;justify-content:center;z-index:30;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+.modal.hidden{display:none}
+.mbox{background:#fff;border-radius:16px;padding:18px;width:100%;max-width:420px;text-align:center}
+input[type=text]{text-align:left}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#2f4858">
@@ -164,7 +168,7 @@ details.card[open] summary{margin-bottom:10px}
       <summary>工項清單 <span id="listCount" style="color:var(--muted);font-weight:400;font-size:13px;margin-left:auto;margin-right:8px"></span></summary>
       <div id="listBody"></div>
     </details>
-    <details class="card">
+    <details class="card" id="rebarCard">
       <summary>鋼筋用量（網狀配筋）</summary>
       <div class="grid">
         <div><label>鋼筋號數</label><select id="rBar"></select></div>
@@ -254,6 +258,17 @@ details.card[open] summary{margin-bottom:10px}
     </details>
   </div>
 
+  <div class="card">
+    <h2><span class="dot"></span>匯出報表</h2>
+    <label>工程名稱（選填，會印在報表上）</label>
+    <input id="expProj" type="text" placeholder="例：冀晨 5F 浴室" style="font-size:16px">
+    <div class="actions" style="margin-top:12px">
+      <button class="btn" onclick="doExport('pdf')">📄 匯出 PDF</button>
+      <button class="btn" style="background:#2b7a3d" onclick="doExport('xlsx')">📊 匯出 Excel</button>
+    </div>
+    <div class="note">面積頁：有加入清單就匯出整份清單＋合併總用量，沒有則匯出目前選的工項（鋼筋區塊有展開時一併匯出）。體積頁：匯出混凝土、鋼筋、清運數量。</div>
+  </div>
+
   <div class="actions">
     <button class="btn" onclick="copyResult()">複製結果</button>
     <button class="btn sec" onclick="saveResult()">存入紀錄</button>
@@ -268,10 +283,19 @@ details.card[open] summary{margin-bottom:10px}
   <div class="note" style="text-align:center;margin-top:14px">
     <button class="btn" id="installBtn" style="display:none;width:100%;margin-bottom:10px">📲 安裝到手機</button>
     <span id="installTip">Android：瀏覽器選單 →「安裝應用程式」／iPhone：Safari 分享鈕 →「加入主畫面」</span>
-    <div style="margin-top:6px;opacity:.7">版本 v5</div>
+    <div style="margin-top:6px;opacity:.7">版本 v6</div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="modal hidden" id="readyModal" onclick="if(event.target===this)closeReady()">
+  <div class="mbox">
+    <div style="font-weight:900;font-size:17px">✅ 檔案已產生</div>
+    <div id="readyName" style="font-size:13px;color:var(--muted);margin:6px 0 14px;word-break:break-all"></div>
+    <button class="btn" id="readyShare" style="width:100%;margin-bottom:8px" onclick="shareReady()">分享 / 存到手機（LINE、檔案）</button>
+    <button class="btn sec" style="width:100%;margin-bottom:8px" onclick="downloadReady()">下載</button>
+    <button class="linkbtn" style="width:100%;padding:8px" onclick="closeReady()">關閉</button>
+  </div>
+</div>
 
 <script>
 const BARS = [
@@ -279,7 +303,7 @@ const BARS = [
   ["#7 (D22)",3.04],["#8 (D25)",3.98],["#9 (D29)",5.08],["#10 (D32)",6.39]
 ];
 const $ = id => document.getElementById(id);
-const WI = [{"c":"地磚","t":"60×120地磚（軟底）","L":[["水泥(40kg)","包",0.45937,"1M3砂/7包水泥"],["細砂","M3",0.0525,"平均厚度5公分"],["磁磚 60×120","塊",1.66667,"20%損耗"],["磁磚黏著劑(25kg)","包",0.10101,""],["填縫劑(10kg)","包",0.01263,""],["PE保護板","片",0.744,""]]},{"c":"地磚","t":"60×120地磚（硬底）","L":[["水泥(40kg)","包",0.30303,"1包水泥/3.3M2"],["細砂","M3",0.0525,"平均厚度5公分"],["界面接著劑","桶",0.02,""],["磁磚 60×120","塊",1.52778,""],["磁磚黏著劑(25kg)","包",0.3,"1包約1坪"],["填縫劑(10kg)","包",0.01515,""],["PE保護板","片",0.744,""]]},{"c":"地磚","t":"60×60地磚（硬底）","L":[["水泥(40kg)","包",0.30303,"1包水泥/3.3M2"],["細砂","M3",0.0525,"平均厚度5公分"],["界面接著劑","桶",0.02,""],["磁磚 60×60","塊",3.05556,""],["磁磚黏著劑(25kg)","包",0.04329,""],["填縫劑(10kg)","包",0.01515,""],["PE保護板","片",0.744,""]]},{"c":"地磚","t":"45×90止滑地磚（1:3砂漿）","L":[["水泥(40kg)","包",0.378,"1M3砂/9包水泥"],["細砂","M3",0.042,"平均厚度4公分"],["打底黏著劑(25kg)","包",0.07,""],["磁磚 45×90","塊",2.83951,"15%損耗"],["填縫劑(25kg)","包",0.02,""]]},{"c":"地磚","t":"30×30止滑地磚（1:3砂漿）","L":[["水泥(40kg)","包",0.378,"1M3砂/9包水泥"],["細砂","M3",0.042,"平均厚度4公分"],["打底黏著劑(25kg)","包",0.07,""],["磁磚 30×30","塊",12,"8%損耗"],["填縫劑(25kg)","包",0.02,""]]},{"c":"地磚","t":"20×20止滑地磚（1:3砂漿）","L":[["水泥(40kg)","包",0.378,"1M3砂/9包水泥"],["細砂","M3",0.042,"平均厚度4公分"],["打底黏著劑(25kg)","包",0.07,""],["磁磚 20×20","塊",27,"8%損耗"],["填縫劑(25kg)","包",0.02,""]]},{"c":"地磚","t":"10×20地磚（硬底）","L":[["磁磚 10×20","塊",50,"5%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.08918,""]]},{"c":"地磚","t":"10×10地磚（硬底）","L":[["磁磚 10×10","塊",86.77686,"5%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.08918,""]]},{"c":"壁磚","t":"60×120壁磚","L":[["磁磚 60×120","片",1.66667,"20%損耗"],["磁磚黏著劑(25kg)","包",0.33,""],["填縫劑(10kg)","包",0.02601,""],["磁磚清潔劑(5加侖)","桶",0.00222,""]],"n":"打底另計，可再加「內牆1:3水泥打底」"},{"c":"壁磚","t":"45×90壁磚","L":[["磁磚 45×90","塊",2.83951,"15%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.02601,""],["磁磚清潔劑(5加侖)","桶",0.00222,""]],"n":"打底另計，可再加「內牆1:3水泥打底」"},{"c":"壁磚","t":"30×60壁磚","L":[["磁磚 30×60","塊",6.11111,"10%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.02601,""],["磁磚清潔劑(5加侖)","桶",0.00222,""]],"n":"打底另計，可再加「內牆1:3水泥打底」"},{"c":"壁磚","t":"20×20壁磚","L":[["磁磚 20×20","塊",26.25,"5%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.08918,""]],"n":"打底另計，可再加「內牆1:3水泥粉刷」"},{"c":"外牆","t":"外牆不鏽鋼鐵件乾掛石材(T=3CM)","L":[["石材(T=3cm)","才",1,""],["石材磨小邊","米",0.12,""]],"su":"才"},{"c":"外牆","t":"外牆1:3砂漿打底貼二丁掛磚 6×22.7","L":[["水泥(40kg)","包",0.352,"1M3砂配11包水泥"],["細砂","M3",0.032,"平均厚度3公分"],["打底黏著劑(25kg)","包",0.1,""],["二丁掛磚 6×22.7","支",68.0228,"5%損耗"],["磁磚黏著劑(25kg)","包",0.11,""],["填縫劑(25kg)","包",0.11,""],["磁磚清潔劑(5加侖)","桶",0.00606,""]]},{"c":"外牆","t":"外牆1:3砂漿打底貼15×45","L":[["水泥(40kg)","包",0.35437,"1M3砂配9包水泥"],["細砂","M3",0.0315,"平均厚度3公分"],["打底黏著劑(25kg)","包",0.1,""],["磁磚 15×45","塊",16.2963,"10%損耗"],["磁磚黏著劑(25kg)","包",0.33,""],["填縫劑(25kg)","包",0.1,""],["磁磚清潔劑(5加侖)","桶",0.00606,""]]},{"c":"外牆","t":"外牆1:3砂漿打底粉光（仿石材塗料面）","L":[["水泥(40kg)","包",0.35437,"1M3砂配9包水泥"],["細砂","M3",0.0315,"平均厚度3公分"],["打底黏著劑(25kg)","包",0.1,""],["粉光材(40kg)","包",0.12875,""],["仿石材塗料","m²",1,""]]},{"c":"內牆","t":"內牆1:3水泥粉刷（打底＋粉光）","L":[["水泥(40kg)","包",0.2575,"1M3砂配8包水泥"],["細砂","M3",0.02575,"平均厚度2.5公分"],["打底黏著劑(25kg)","包",0.1,""],["粉光材(40kg)","包",0.12875,""]]},{"c":"內牆","t":"內牆1:3水泥打底","L":[["水泥(40kg)","包",0.2575,"1M3砂配8包水泥"],["細砂","M3",0.02575,"平均厚度2.5公分"],["打底黏著劑(25kg)","包",0.1,""]]},{"c":"內牆","t":"防水粉刷（1:2砂漿＋防水劑）","L":[["水泥(40kg)","包",0.28,""],["細砂","M3",0.031,""],["打底黏著劑(25kg)","包",0.1,""],["防水劑","桶",0.038,""]]},{"c":"地坪打底","t":"地坪水泥砂漿打底（5cm）","L":[["水泥(40kg)","包",0.45937,"1M3砂/7包水泥"],["細砂","M3",0.0525,"平均厚度5公分"],["磁磚黏著劑(25kg)","包",0.04329,""]]},{"c":"地坪打底","t":"車道地坪二次澆置RC及整平","L":[["混凝土 3000psi","M3",0.1,""],["點焊鋼絲網(2×3m)","件",0.18333,""]]},{"c":"樓梯","t":"樓梯 20×20止滑石英磚","L":[["水泥(40kg)","包",0.30303,"1包水泥/3.3M2"],["細砂","M3",0.042,"平均厚度4公分"],["磁磚 20×20","塊",26.25,"5%損耗"],["磁磚黏著劑(25kg)","包",0.04329,""],["填縫劑(10kg)","包",0.01515,""]]},{"c":"樓梯","t":"樓梯 20×27止滑石英磚","L":[["水泥(40kg)","包",0.30303,"1包水泥/3.3M2"],["細砂","M3",0.042,"平均厚度4公分"],["磁磚 20×27","塊",22.82609,"5%損耗"],["磁磚黏著劑(25kg)","包",0.04329,""],["填縫劑(10kg)","包",0.01515,""]]},{"c":"隔間 / 砌磚","t":"砌1B磚牆","L":[["紅磚","塊",160,""],["水泥(40kg)","包",0.4,""],["細砂","M3",0.05714,""],["磁磚 ","塊",160,""]]},{"c":"隔間 / 砌磚","t":"砌1/2B磚牆","L":[["紅磚","塊",78,""],["水泥(40kg)","包",0.195,""],["細砂","M3",0.0325,""],["磁磚 ","塊",78,""]]},{"c":"隔間 / 砌磚","t":"濕式灌漿輕隔間牆 C75","L":[["輕隔間牆(雙面6mm板)","m²",1,""],["輕隔間灌漿材","包",1.43,""]]},{"c":"隔間 / 砌磚","t":"濕式灌漿輕隔間牆 C92（H型骨架）","L":[["輕隔間牆(雙面6mm板)","m²",1,""],["輕隔間灌漿材","包",1.43,""]]},{"c":"隔間 / 砌磚","t":"乾式輕隔間牆 C75","L":[["輕隔間牆(填充24K玻璃棉)","m²",1,""]]},{"c":"油漆","t":"室內牆面 批土＋水泥漆","L":[["批土（2道）","m²",1,""],["磨平","m²",1,""],["水泥漆（2遍）","m²",1,""],["水泥漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"地下室牆面 批土＋水泥漆（分色帶）","L":[["批土（2道）","m²",1,""],["磨平","m²",1,""],["水泥漆（2遍）","m²",1,""],["水泥漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"輕隔間牆 整平批土＋水泥漆","L":[["接縫處理（AB膠＋玻纖網＋白土）","m²",1,""],["批土（2次）","m²",1,""],["水泥漆（噴1遍＋刷1遍）","m²",1,""],["水泥漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"輕隔間牆 整平批土（浴室內牆，不含漆）","L":[["接縫處理（AB膠＋玻纖網＋白土）","m²",1,""],["批土（2次）","m²",1,""]]},{"c":"油漆","t":"車道樑面 批土＋黑色塗料","L":[["批土（2道）","m²",1,""],["磨平","m²",1,""],["黑色塗料（2遍）","m²",1,""],["黑色塗料用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"室內平頂 磨平批土＋水泥漆","L":[["水泥(40kg)","包",0.01,"1包約45坪"],["機械磨光","m²",1,""],["批土（黑土＋白土）","m²",1,""],["磨平","m²",1,""],["水泥漆（2遍）","m²",1,""],["水泥漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"車道平頂 磨平批土＋黑色塗料","L":[["水泥(40kg)","包",0.01,"1包約45坪"],["機械磨光","m²",1,""],["批土（黑土＋白土）","m²",1,""],["磨平","m²",1,""],["黑色塗料（2遍）","m²",1,""],["黑色塗料用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"陽台平頂 磨平批土＋晴雨漆","L":[["機械磨光","m²",1,""],["批土（黑土＋白土）","m²",1,""],["磨平","m²",1,""],["晴雨漆（2遍）","m²",1,""],["晴雨漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]}];
+const WI = [{"c":"地磚","t":"60×120地磚（軟底）","L":[["水泥(40kg)","包",0.45937,"1M3砂/7包水泥"],["細砂","M3",0.0525,"平均厚度5公分"],["磁磚 60×120","塊",1.66667,"20%損耗"],["磁磚黏著劑(25kg)","包",0.10101,""],["填縫劑(10kg)","包",0.01263,""],["PE保護板","片",0.744,""]]},{"c":"地磚","t":"60×120地磚（硬底）","L":[["水泥(40kg)","包",0.30303,"1包水泥/3.3M2"],["細砂","M3",0.0525,"平均厚度5公分"],["界面接著劑","桶",0.02,""],["磁磚 60×120","塊",1.52778,""],["磁磚黏著劑(25kg)","包",0.3,"1包約1坪"],["填縫劑(10kg)","包",0.01515,""],["PE保護板","片",0.744,""]]},{"c":"地磚","t":"60×60地磚（硬底）","L":[["水泥(40kg)","包",0.30303,"1包水泥/3.3M2"],["細砂","M3",0.0525,"平均厚度5公分"],["界面接著劑","桶",0.02,""],["磁磚 60×60","塊",3.05556,""],["磁磚黏著劑(25kg)","包",0.04329,""],["填縫劑(10kg)","包",0.01515,""],["PE保護板","片",0.744,""]]},{"c":"地磚","t":"45×90止滑地磚（1:3砂漿）","L":[["水泥(40kg)","包",0.378,"1M3砂/9包水泥"],["細砂","M3",0.042,"平均厚度4公分"],["打底黏著劑(25kg)","包",0.07,""],["磁磚 45×90","塊",2.83951,"15%損耗"],["填縫劑(25kg)","包",0.02,""]]},{"c":"地磚","t":"30×30止滑地磚（1:3砂漿）","L":[["水泥(40kg)","包",0.378,"1M3砂/9包水泥"],["細砂","M3",0.042,"平均厚度4公分"],["打底黏著劑(25kg)","包",0.07,""],["磁磚 30×30","塊",12,"8%損耗"],["填縫劑(25kg)","包",0.02,""]]},{"c":"地磚","t":"20×20止滑地磚（1:3砂漿）","L":[["水泥(40kg)","包",0.378,"1M3砂/9包水泥"],["細砂","M3",0.042,"平均厚度4公分"],["打底黏著劑(25kg)","包",0.07,""],["磁磚 20×20","塊",27,"8%損耗"],["填縫劑(25kg)","包",0.02,""]]},{"c":"地磚","t":"10×20地磚（硬底）","L":[["磁磚 10×20","塊",50,"5%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.08918,""]]},{"c":"地磚","t":"10×10地磚（硬底）","L":[["磁磚 10×10","塊",86.77686,"5%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.08918,""]]},{"c":"壁磚","t":"60×120壁磚","L":[["磁磚 60×120","塊",1.66667,"20%損耗"],["磁磚黏著劑(25kg)","包",0.33,""],["填縫劑(10kg)","包",0.02601,""],["磁磚清潔劑(5加侖)","桶",0.00222,""]],"n":"打底另計，可再加「內牆1:3水泥打底」"},{"c":"壁磚","t":"45×90壁磚","L":[["磁磚 45×90","塊",2.83951,"15%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.02601,""],["磁磚清潔劑(5加侖)","桶",0.00222,""]],"n":"打底另計，可再加「內牆1:3水泥打底」"},{"c":"壁磚","t":"30×60壁磚","L":[["磁磚 30×60","塊",6.11111,"10%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.02601,""],["磁磚清潔劑(5加侖)","桶",0.00222,""]],"n":"打底另計，可再加「內牆1:3水泥打底」"},{"c":"壁磚","t":"20×20壁磚","L":[["磁磚 20×20","塊",26.25,"5%損耗"],["磁磚黏著劑(25kg)","包",0.2601,""],["填縫劑(10kg)","包",0.08918,""]],"n":"打底另計，可再加「內牆1:3水泥粉刷」"},{"c":"外牆","t":"外牆不鏽鋼鐵件乾掛石材(T=3CM)","L":[["石材(T=3cm)","才",1,""],["石材磨小邊","米",0.12,""]],"su":"才"},{"c":"外牆","t":"外牆1:3砂漿打底貼二丁掛磚 6×22.7","L":[["水泥(40kg)","包",0.352,"1M3砂配11包水泥"],["細砂","M3",0.032,"平均厚度3公分"],["打底黏著劑(25kg)","包",0.1,""],["二丁掛磚 6×22.7","支",68.0228,"5%損耗"],["磁磚黏著劑(25kg)","包",0.11,""],["填縫劑(25kg)","包",0.11,""],["磁磚清潔劑(5加侖)","桶",0.00606,""]]},{"c":"外牆","t":"外牆1:3砂漿打底貼15×45","L":[["水泥(40kg)","包",0.35437,"1M3砂配9包水泥"],["細砂","M3",0.0315,"平均厚度3公分"],["打底黏著劑(25kg)","包",0.1,""],["磁磚 15×45","塊",16.2963,"10%損耗"],["磁磚黏著劑(25kg)","包",0.33,""],["填縫劑(25kg)","包",0.1,""],["磁磚清潔劑(5加侖)","桶",0.00606,""]]},{"c":"外牆","t":"外牆1:3砂漿打底粉光（仿石材塗料面）","L":[["水泥(40kg)","包",0.35437,"1M3砂配9包水泥"],["細砂","M3",0.0315,"平均厚度3公分"],["打底黏著劑(25kg)","包",0.1,""],["粉光材(40kg)","包",0.12875,""],["仿石材塗料","m²",1,""]]},{"c":"內牆","t":"內牆1:3水泥粉刷（打底＋粉光）","L":[["水泥(40kg)","包",0.2575,"1M3砂配8包水泥"],["細砂","M3",0.02575,"平均厚度2.5公分"],["打底黏著劑(25kg)","包",0.1,""],["粉光材(40kg)","包",0.12875,""]]},{"c":"內牆","t":"內牆1:3水泥打底","L":[["水泥(40kg)","包",0.2575,"1M3砂配8包水泥"],["細砂","M3",0.02575,"平均厚度2.5公分"],["打底黏著劑(25kg)","包",0.1,""]]},{"c":"內牆","t":"防水粉刷（1:2砂漿＋防水劑）","L":[["水泥(40kg)","包",0.28,""],["細砂","M3",0.031,""],["打底黏著劑(25kg)","包",0.1,""],["防水劑","桶",0.038,""]]},{"c":"地坪打底","t":"地坪水泥砂漿打底（5cm）","L":[["水泥(40kg)","包",0.45937,"1M3砂/7包水泥"],["細砂","M3",0.0525,"平均厚度5公分"],["磁磚黏著劑(25kg)","包",0.04329,""]]},{"c":"地坪打底","t":"車道地坪二次澆置RC及整平","L":[["混凝土 3000psi","M3",0.1,""],["點焊鋼絲網(2×3m)","件",0.18333,""]]},{"c":"樓梯","t":"樓梯 20×20止滑石英磚","L":[["水泥(40kg)","包",0.30303,"1包水泥/3.3M2"],["細砂","M3",0.042,"平均厚度4公分"],["磁磚 20×20","塊",26.25,"5%損耗"],["磁磚黏著劑(25kg)","包",0.04329,""],["填縫劑(10kg)","包",0.01515,""]]},{"c":"樓梯","t":"樓梯 20×27止滑石英磚","L":[["水泥(40kg)","包",0.30303,"1包水泥/3.3M2"],["細砂","M3",0.042,"平均厚度4公分"],["磁磚 20×27","塊",22.82609,"5%損耗"],["磁磚黏著劑(25kg)","包",0.04329,""],["填縫劑(10kg)","包",0.01515,""]]},{"c":"隔間 / 砌磚","t":"砌1B磚牆","L":[["紅磚","塊",160,""],["水泥(40kg)","包",0.4,""],["細砂","M3",0.05714,""],["磁磚 ","塊",160,""]]},{"c":"隔間 / 砌磚","t":"砌1/2B磚牆","L":[["紅磚","塊",78,""],["水泥(40kg)","包",0.195,""],["細砂","M3",0.0325,""],["磁磚 ","塊",78,""]]},{"c":"隔間 / 砌磚","t":"濕式灌漿輕隔間牆 C75","L":[["輕隔間牆(雙面6mm板)","m²",1,""],["輕隔間灌漿材","包",1.43,""]]},{"c":"隔間 / 砌磚","t":"濕式灌漿輕隔間牆 C92（H型骨架）","L":[["輕隔間牆(雙面6mm板)","m²",1,""],["輕隔間灌漿材","包",1.43,""]]},{"c":"隔間 / 砌磚","t":"乾式輕隔間牆 C75","L":[["輕隔間牆(填充24K玻璃棉)","m²",1,""]]},{"c":"油漆","t":"室內牆面 批土＋水泥漆","L":[["批土（2道）","m²",1,""],["磨平","m²",1,""],["水泥漆（2遍）","m²",1,""],["水泥漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"地下室牆面 批土＋水泥漆（分色帶）","L":[["批土（2道）","m²",1,""],["磨平","m²",1,""],["水泥漆（2遍）","m²",1,""],["水泥漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"輕隔間牆 整平批土＋水泥漆","L":[["接縫處理（AB膠＋玻纖網＋白土）","m²",1,""],["批土（2次）","m²",1,""],["水泥漆（噴1遍＋刷1遍）","m²",1,""],["水泥漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"輕隔間牆 整平批土（浴室內牆，不含漆）","L":[["接縫處理（AB膠＋玻纖網＋白土）","m²",1,""],["批土（2次）","m²",1,""]]},{"c":"油漆","t":"車道樑面 批土＋黑色塗料","L":[["批土（2道）","m²",1,""],["磨平","m²",1,""],["黑色塗料（2遍）","m²",1,""],["黑色塗料用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"室內平頂 磨平批土＋水泥漆","L":[["水泥(40kg)","包",0.01,"1包約45坪"],["機械磨光","m²",1,""],["批土（黑土＋白土）","m²",1,""],["磨平","m²",1,""],["水泥漆（2遍）","m²",1,""],["水泥漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"車道平頂 磨平批土＋黑色塗料","L":[["水泥(40kg)","包",0.01,"1包約45坪"],["機械磨光","m²",1,""],["批土（黑土＋白土）","m²",1,""],["磨平","m²",1,""],["黑色塗料（2遍）","m²",1,""],["黑色塗料用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]},{"c":"油漆","t":"陽台平頂 磨平批土＋晴雨漆","L":[["機械磨光","m²",1,""],["批土（黑土＋白土）","m²",1,""],["磨平","m²",1,""],["晴雨漆（2遍）","m²",1,""],["晴雨漆用量(估)","加侖",0.06667,"刷2遍，每加侖單遍約30m²"]]}];
 let mode = 'A', unit = 'm', inMode = 'dim';
 
 const rb = $('rBar');
@@ -477,6 +501,190 @@ document.querySelectorAll('input,select').forEach(el=>{el.addEventListener('inpu
 renderHist();
 initW();
 setMode(load('qc_mode')==='V'?'V':'A');
+/* ===== 匯出 PDF / Excel（不需外部套件，離線可用） ===== */
+function reportData(){
+  const secs=[];
+  if(mode==='A'){
+    if(wList.length){
+      secs.push({h:'工項清單',cols:['工項','尺寸','施作數量','單位'],w:[.44,.32,.14,.10],num:[0,0,1,0],
+        rows:wList.map(e=>{const it=WI[e.i];return [it.t,e.d,f(it.su==='才'?e.m2*10.89:e.m2,2),it.su==='才'?'才':'m²']})});
+      secs.push({h:'合併總用量',cols:['材料','用量','單位','叫料'],w:[.46,.2,.14,.2],num:[0,1,0,1],
+        rows:aggList().map(l=>[l.n,qf(l.tq,l.u),l.u,l.r!==null?f(l.r,0):''])});
+    } else if(wLast&&last.area>0){
+      const dim=last.useM2?f(num('M2'))+' m²':f(last.L,2)+'m × '+f(last.W,2)+'m';
+      const op=num('wOpen')>0?`，扣開口 ${f(num('wOpen'))} m²`:'';
+      secs.push({h:wLast.it.t,sub:`尺寸：${dim}${last.N>1?' × '+last.N+'處':''}${op}　施作數量：${f(wLast.amt,2)} ${wLast.it.su==='才'?'才':'m²'}`,
+        cols:['材料','用量','單位','叫料'],w:[.46,.2,.14,.2],num:[0,1,0,1],
+        rows:wLast.ls.map(l=>[l.n,qf(l.tq,l.u),l.u,l.r!==null?f(l.r,0):''])});
+    }
+    if($('rebarCard').open&&last.area>0){
+      const t=id=>$(id).textContent;
+      secs.push({h:'鋼筋用量（網狀配筋）',sub:`${rb.selectedOptions[0].textContent.split('　')[0]}　@${$('rSp').value}cm　${$('rLayer').value==='2'?'雙層':'單層'}　搭接＋損耗 ${$('rLap').value}%　面積 ${f(last.area)} m²`,
+        cols:['項目','數量','單位',''],w:[.46,.2,.14,.2],num:[0,1,0,0],
+        rows:[['鋼筋根數（雙向）',t('oBars').replace('根',''),'根',''],['總長度',t('oRLen').replace('m',''),'m',''],
+          ['總重量',t('oRKg').replace('kg',''),'kg',''],['約合',t('oRTon').replace('噸',''),'噸',''],['換算 12m 定尺',t('oR12').replace('支',''),'支','']]});
+    }
+  } else if(last.vol>0){
+    secs.push({h:'體積',sub:`尺寸：${f(last.L,2)}m × ${f(last.W,2)}m × ${f(last.H,2)}m${last.N>1?' × '+last.N+'處':''}`,
+      cols:['項目','數量','單位','備註'],w:[.4,.2,.12,.28],num:[0,1,0,0],
+      rows:[['體積',f(last.vol,3),'m³',''],
+        ['混凝土（含損耗）',f(last.con,2),'m³',`損耗 ${$('cLoss').value}%`],
+        ['混凝土叫料',f(last.order,1),'m³',`${last.ctr} 車（每車 ${$('cTruck').value} m³）`],
+        ['鋼筋重量',f(last.vkg,0),'kg',`含筋率 ${$('vRate').value} kg/m³`],
+        ['清運－實方',f(last.vol,2),'m³',last.wname],
+        ['清運－鬆方',f(last.loose,2),'m³',`鬆方係數 ${$('wSwell').value}`],
+        ['清運－重量',f(last.ton,2),'噸',''],
+        ['清運車次',f(last.trips,0),'車次',`每車 ${$('wCapV').value} m³／${$('wCapT').value} 噸`]]});
+  }
+  const d=new Date(),p2=n=>String(n).padStart(2,'0');
+  return {title:'小棒槌-工程數量計算',proj:$('expProj').value.trim(),
+    time:`${d.getFullYear()}/${p2(d.getMonth()+1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`,
+    stamp:`${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}_${p2(d.getHours())}${p2(d.getMinutes())}`,secs};
+}
+function expName(R,ext){return (R.proj?R.proj.replace(/[\\/:*?"<>|\s]+/g,'_')+'_':'')+'工程數量_'+R.stamp+'.'+ext}
+
+/* ---- PDF：畫在畫布上，再包成 PDF ---- */
+const PW=595.28,PH=841.89,PM=40,PS=2.5,FONT='"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif';
+function layoutPDF(R){
+  const cv=document.createElement('canvas').getContext('2d');
+  const font=(s,b)=>`${b?700:400} ${s}px ${FONT}`;
+  const wrap=(str,maxW,s,b)=>{cv.font=font(s,b);const out=[];let cur='';for(const ch of String(str)){if(cv.measureText(cur+ch).width>maxW&&cur){out.push(cur);cur=ch}else cur+=ch}out.push(cur);return out};
+  const pages=[];let ops,y;const CW=PW-PM*2,BOT=PH-PM-18;
+  const newPage=()=>{ops=[];pages.push(ops);y=PM};
+  newPage();
+  ops.push({t:'rect',x:PM,y,w:CW,h:3,c:'#e8590c'});y+=14;
+  ops.push({t:'text',x:PM,y:y+18,s:19,b:1,c:'#1d1f22',str:R.title+'　數量報表'});y+=30;
+  if(R.proj){ops.push({t:'text',x:PM,y:y+12,s:11.5,c:'#1d1f22',str:'工程名稱：'+R.proj});y+=18}
+  ops.push({t:'text',x:PM,y:y+11,s:10,c:'#6b6f76',str:'匯出時間：'+R.time});y+=24;
+  const rowLines=(sec,row)=>row.map((v,i)=>wrap(v,sec.w[i]*CW-12,10.5,0));
+  for(const sec of R.secs){
+    const head=()=>{ops.push({t:'rect',x:PM,y,w:CW,h:22,c:'#2f4858'});
+      let x=PM;sec.cols.forEach((c,i)=>{const w=sec.w[i]*CW;ops.push({t:'text',x:sec.num[i]?x+w-6:x+6,y:y+15,s:10.5,b:1,c:'#fff',str:c,al:sec.num[i]?'right':'left'});x+=w});y+=22};
+    const first=rowLines(sec,sec.rows[0]||['']);const fh=Math.max(...first.map(l=>l.length))*14+8;
+    const subL=sec.sub?wrap(sec.sub,CW,9.5,0):[];
+    if(y+26+subL.length*13+22+fh>BOT)newPage();
+    ops.push({t:'rect',x:PM,y:y+2,w:4,h:15,c:'#e8590c'});
+    ops.push({t:'text',x:PM+10,y:y+15,s:13,b:1,c:'#2f4858',str:sec.h});y+=24;
+    subL.forEach(l=>{ops.push({t:'text',x:PM,y:y+10,s:9.5,c:'#6b6f76',str:l});y+=13});if(subL.length)y+=4;
+    head();
+    sec.rows.forEach((row,ri)=>{
+      const L=rowLines(sec,row);const h=Math.max(...L.map(l=>l.length))*14+8;
+      if(y+h>BOT){newPage();ops.push({t:'text',x:PM,y:y+12,s:10.5,b:1,c:'#2f4858',str:sec.h+'（續）'});y+=20;head()}
+      if(ri%2)ops.push({t:'rect',x:PM,y,w:CW,h,c:'#f6f4ef'});
+      let x=PM;L.forEach((lines,i)=>{const w=sec.w[i]*CW;lines.forEach((ln,k)=>ops.push({t:'text',x:sec.num[i]?x+w-6:x+6,y:y+15+k*14,s:10.5,b:sec.num[i]&&i===1?1:0,c:'#1d1f22',str:ln,al:sec.num[i]?'right':'left'}));x+=w});
+      y+=h;ops.push({t:'rect',x:PM,y:y-0.5,w:CW,h:0.6,c:'#dcd8cf'});
+    });
+    y+=18;
+  }
+  ops.push({t:'text',x:PM,y:y+4,s:8.5,c:'#8a8e95',str:'※ 用量依單價分析每單位用量計算，已含損耗；叫料為整包、整塊進位後數量。'});
+  return pages;
+}
+async function renderPDF(R){
+  try{await document.fonts.ready}catch(e){}
+  const pages=layoutPDF(R),N=pages.length,imgs=[];
+  for(let i=0;i<N;i++){
+    const c=document.createElement('canvas');c.width=Math.round(PW*PS);c.height=Math.round(PH*PS);
+    const g=c.getContext('2d');g.scale(PS,PS);g.fillStyle='#fff';g.fillRect(0,0,PW,PH);g.textBaseline='alphabetic';
+    for(const o of pages[i]){
+      if(o.t==='rect'){g.fillStyle=o.c;g.fillRect(o.x,o.y,o.w,o.h)}
+      else{g.font=`${o.b?700:400} ${o.s}px ${FONT}`;g.fillStyle=o.c;g.textAlign=o.al||'left';g.fillText(o.str,o.x,o.y)}
+    }
+    g.font=`400 8.5px ${FONT}`;g.fillStyle='#8a8e95';g.textAlign='left';g.fillText(R.title,PM,PH-PM+4);
+    g.textAlign='right';g.fillText(`第 ${i+1} / ${N} 頁`,PW-PM,PH-PM+4);
+    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.92));
+    imgs.push({w:c.width,h:c.height,data:new Uint8Array(await blob.arrayBuffer())});
+  }
+  return makePDF(imgs);
+}
+function makePDF(imgs){
+  const enc=new TextEncoder(),parts=[],offs=[];let len=0;
+  const push=x=>{const b=typeof x==='string'?enc.encode(x):x;parts.push(b);len+=b.length};
+  const obj=(id,fn)=>{offs[id]=len;push(id+' 0 obj\n');fn();push('\nendobj\n')};
+  push('%PDF-1.4\n');push(new Uint8Array([37,226,227,207,211,10]));
+  const n=imgs.length;
+  obj(1,()=>push('<< /Type /Catalog /Pages 2 0 R >>'));
+  obj(2,()=>push(`<< /Type /Pages /Count ${n} /Kids [${imgs.map((_,i)=>(3+3*i)+' 0 R').join(' ')}] >>`));
+  imgs.forEach((im,i)=>{const p=3+3*i;const cs=`q ${PW} 0 0 ${PH} 0 0 cm /Im${i} Do Q`;
+    obj(p,()=>push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /XObject << /Im${i} ${p+2} 0 R >> >> /Contents ${p+1} 0 R >>`));
+    obj(p+1,()=>{push(`<< /Length ${cs.length} >>\nstream\n`);push(cs);push('\nendstream')});
+    obj(p+2,()=>{push(`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.data.length} >>\nstream\n`);push(im.data);push('\nendstream')});
+  });
+  const total=3+3*n,xref=len;let x=`xref\n0 ${total}\n0000000000 65535 f \n`;
+  for(let k=1;k<total;k++)x+=String(offs[k]).padStart(10,'0')+' 00000 n \n';
+  push(x);push(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return new Blob(parts,{type:'application/pdf'});
+}
+
+/* ---- Excel (.xlsx)：自己組 ZIP ---- */
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
+function zipStore(files){
+  const enc=new TextEncoder(),chunks=[],central=[];let off=0;
+  for(const fl of files){const nm=enc.encode(fl.name),data=enc.encode(fl.data),crc=crc32(data),sz=data.length;
+    const h=new DataView(new ArrayBuffer(30));
+    [[0,0x04034b50,4],[4,20,2],[6,0x0800,2],[8,0,2],[10,0,2],[12,0x21,2],[14,crc,4],[18,sz,4],[22,sz,4],[26,nm.length,2],[28,0,2]].forEach(([o,v,s])=>s===4?h.setUint32(o,v,true):h.setUint16(o,v,true));
+    chunks.push(new Uint8Array(h.buffer),nm,data);
+    const c=new DataView(new ArrayBuffer(46));
+    [[0,0x02014b50,4],[4,20,2],[6,20,2],[8,0x0800,2],[10,0,2],[12,0,2],[14,0x21,2],[16,crc,4],[20,sz,4],[24,sz,4],[28,nm.length,2],[30,0,2],[32,0,2],[34,0,2],[36,0,2],[38,0,4],[42,off,4]].forEach(([o,v,s])=>s===4?c.setUint32(o,v,true):c.setUint16(o,v,true));
+    central.push(new Uint8Array(c.buffer),nm);off+=30+nm.length+sz}
+  const cd=central.reduce((a,b)=>a+b.length,0),e=new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cd,true);e.setUint32(16,off,true);
+  return [...chunks,...central,new Uint8Array(e.buffer)];
+}
+function buildXLSX(R){
+  const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const rows=[];const add=(cells,st=0)=>rows.push({cells,st});
+  add([R.title+' 數量報表'],2);if(R.proj)add(['工程名稱：'+R.proj]);add(['匯出時間：'+R.time]);add([]);
+  R.secs.forEach(s=>{add([s.h],1);if(s.sub)add([s.sub]);add(s.cols,3);
+    s.rows.forEach(r=>add(r.map((v,i)=>{const t=String(v).replace(/,/g,'');return s.num[i]&&/^-?\d+(\.\d+)?$/.test(t)?Number(t):v})));add([])});
+  const col=i=>'ABCDEFGH'[i];
+  const sd=rows.map((r,ri)=>`<row r="${ri+1}">`+r.cells.map((v,ci)=>{const ref=col(ci)+(ri+1);
+    if(v===''||v==null)return r.st?`<c r="${ref}" s="${r.st}"/>`:'';
+    return typeof v==='number'?`<c r="${ref}" s="${r.st||4}"><v>${v}</v></c>`:`<c r="${ref}" t="inlineStr"${r.st?` s="${r.st}"`:''}><is><t>${esc(v)}</t></is></c>`}).join('')+'</row>').join('');
+  const X='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  return new Blob(zipStore([
+    {name:'[Content_Types].xml',data:X+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'},
+    {name:'_rels/.rels',data:X+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
+    {name:'xl/workbook.xml',data:X+'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="工程數量" sheetId="1" r:id="rId1"/></sheets></workbook>'},
+    {name:'xl/_rels/workbook.xml.rels',data:X+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'},
+    {name:'xl/styles.xml',data:X+'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.###"/></numFmts><fonts count="4"><font><sz val="11"/><name val="Microsoft JhengHei"/></font><font><b/><sz val="12"/><color rgb="FF2F4858"/><name val="Microsoft JhengHei"/></font><font><b/><sz val="15"/><name val="Microsoft JhengHei"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Microsoft JhengHei"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2F4858"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="5"><xf/><xf fontId="1" applyFont="1"/><xf fontId="2" applyFont="1"/><xf fontId="3" fillId="2" applyFont="1" applyFill="1"/><xf numFmtId="164" applyNumberFormat="1"/></cellXfs></styleSheet>'},
+    {name:'xl/worksheets/sheet1.xml',data:X+'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="40" customWidth="1"/><col min="2" max="2" width="24" customWidth="1"/><col min="3" max="3" width="12" customWidth="1"/><col min="4" max="4" width="30" customWidth="1"/></cols><sheetData>'+sd+'</sheetData></worksheet>'},
+  ]),{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+
+/* ---- 匯出流程 ---- */
+let readyFile=null;
+async function doExport(kind){
+  const R=reportData();
+  if(!R.secs.length){toast(mode==='A'?'請先輸入尺寸，或把工項加入清單':'請先輸入長、寬、高');return}
+  store('qc_proj',$('expProj').value);
+  toast(kind==='pdf'?'產生 PDF 中…':'產生 Excel 中…');
+  try{
+    const blob=kind==='pdf'?await renderPDF(R):buildXLSX(R);
+    showReady(blob,expName(R,kind==='pdf'?'pdf':'xlsx'));
+  }catch(e){toast('匯出失敗，請再試一次')}
+}
+function showReady(blob,name){
+  readyFile={blob,name,file:new File([blob],name,{type:blob.type})};
+  $('readyName').textContent=name;
+  const can=!!(navigator.canShare&&navigator.canShare({files:[readyFile.file]}));
+  $('readyShare').style.display=can?'block':'none';
+  $('readyModal').classList.remove('hidden');
+}
+function closeReady(){$('readyModal').classList.add('hidden')}
+async function shareReady(){
+  if(!readyFile)return;
+  try{await navigator.share({files:[readyFile.file],title:readyFile.name});closeReady()}
+  catch(e){if(e&&e.name!=='AbortError')toast('無法分享，請改用「下載」')}
+}
+function downloadReady(){
+  if(!readyFile)return;
+  const a=document.createElement('a');a.href=URL.createObjectURL(readyFile.blob);a.download=readyFile.name;
+  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},5000);
+  toast('已下載');closeReady();
+}
+$('expProj').value=load('qc_proj')||'';
+
 /* PWA */
 if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
 let deferredPrompt=null;
