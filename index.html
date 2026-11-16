@@ -316,6 +316,7 @@ input[type=text]{text-align:left}
         <div class="stat alt"><div class="k">坪數</div><div class="v"><span id="fPing">0</span><span class="u">坪</span></div></div>
       </div>
       <div id="fMiss"></div>
+      <div id="fWdBox" class="hidden"><div class="subh">門窗數量（CAD 圖上的門窗編號）</div><div class="tbl" id="fWd"></div></div>
       <div class="subh">工項數量</div>
       <div class="tbl" id="fItems"></div>
       <div class="subh">材料總表（同種材料合併）</div>
@@ -349,7 +350,7 @@ input[type=text]{text-align:left}
   <div class="note" style="text-align:center;margin-top:14px">
     <button class="btn" id="installBtn" style="display:none;width:100%;margin-bottom:10px">📲 安裝到手機</button>
     <span id="installTip">Android：瀏覽器選單 →「安裝應用程式」／iPhone：Safari 分享鈕 →「加入主畫面」</span>
-    <div style="margin-top:6px;opacity:.7">版本 v37</div>
+    <div style="margin-top:6px;opacity:.7">版本 v38</div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -621,7 +622,7 @@ const RNAMES=['客廳','餐廳','廚房','主臥','臥室','浴室','陽台','�
 const XNAMES=['隔間牆','外牆','女兒牆','其他'];
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const pn=v=>{const x=parseFloat(v);return isFinite(x)&&x>0?x:0};
-function flNew(){return {name:'',h:'',n:'',rooms:[],walls:[]}}
+function flNew(){return {name:'',h:'',n:'',rooms:[],walls:[],wd:[]}}
 let FL=null;try{FL=JSON.parse(load('qc_floor')||'null')}catch(e){FL=null}
 if(!FL||!Array.isArray(FL.rooms))FL=flNew();if(!Array.isArray(FL.walls))FL.walls=[];
 let FLS={};try{FLS=JSON.parse(load('qc_floors')||'{}')||{}}catch(e){FLS={}}
@@ -660,7 +661,7 @@ function entLI(e,k,i){
   const a=eAreas(e),c=eCnt(e);
   const ar=e.k==='X'?`面積 ${f(a.X*c)} m²`:`地坪 ${f(a.F*c)}・牆 ${f(a.W*c)}・天花 ${f(a.C*c)} m²`;
   return `<div class="li"><div class="main" onclick="openEnt('${k}',${i})"><b>${esc(e.name)}</b>${c>1?` ×${c}${k==='R'?'間':'處'}`:''}
-    <span class="fin" style="color:var(--ink)">${eDim(e)}　${ar}</span><span class="fin">${esc(finTxt(e))}</span></div>
+    <span class="fin" style="color:var(--ink)">${eDim(e)}　${ar}</span>${e.wd?`<span class="fin">門窗：${esc(e.wd)}（扣 ${f(pn(e.open))} m²）</span>`:''}<span class="fin">${esc(finTxt(e))}</span></div>
     <div class="acts"><button class="x c" title="複製" onclick="copyEnt('${k}',${i})">⧉</button><button class="x" title="刪除" onclick="delEnt('${k}',${i})">✕</button></div></div>`;
 }
 function renderFloor(){
@@ -675,6 +676,8 @@ function renderFloorTot(){
   $('fTotN').textContent=R.N>1?`（${R.N} 層合計）`:'';
   $('fArea').textContent=f(R.fa);$('fPing').textContent=f(R.fa*0.3025);
   $('fMiss').innerHTML=R.miss.length?`<div class="warn">⚠ 這些做法在新版材料分析裡找不到，沒有算進去，請重新選：${R.miss.map(esc).join('、')}</div>`:'';
+  const wd=FL.wd||[];$('fWdBox').classList.toggle('hidden',!wd.length);
+  $('fWd').innerHTML=wd.map(w=>`<div class="tr lab"><div class="n">${esc(w.c)}<span class="m" style="margin-left:8px">${w.s?w.s+' cm':'圖上沒有尺寸'}</span></div><div class="q">${w.n*R.N}<small>樘</small></div></div>`).join('');
   $('fItems').innerHTML=R.items.length?R.items.map(o=>`<div class="tr lab"><div class="n">${esc(o.it.t)}</div><div class="q">${f(itAmt(o.it,o.m2),2)}<small>${itU(o.it)}</small></div></div>`).join(''):'<div class="tr"><div class="empty">尚無資料</div></div>';
   $('fMats').innerHTML=R.mats.length?R.mats.map(rowHTML).join(''):'<div class="tr"><div class="empty">尚無資料</div></div>';
 }
@@ -804,6 +807,7 @@ function flSummary(){
   let s=`【整層材料】${FL.name||''}${R.N>1?'（'+R.N+'層合計）':''}\n樓地板面積：${f(R.fa)} m²（${f(R.fa*0.3025)} 坪）\n`;
   s+='\n【房間】\n'+FL.rooms.map(e=>`・${e.name}${eCnt(e)>1?' ×'+eCnt(e)+'間':''}：${eDim(e)}；${finTxt(e)}`).join('\n');
   if(FL.walls.length)s+='\n\n【牆體／外牆／其他】\n'+FL.walls.map(e=>`・${e.name}${eCnt(e)>1?' ×'+eCnt(e)+'處':''}：${eDim(e)}；${finTxt(e)}`).join('\n');
+  if((FL.wd||[]).length)s+='\n\n【門窗數量】\n'+FL.wd.map(w=>`・${w.c}${w.s?'（'+w.s+'）':''}：${w.n*R.N} 樘`).join('\n');
   s+='\n\n【工項數量】\n'+R.items.map(o=>`・${o.it.t}：${f(itAmt(o.it,o.m2),2)} ${itU(o.it)}`).join('\n');
   s+='\n\n【材料總表】\n'+R.mats.map(lineTxt).join('\n');
   return s;
@@ -818,6 +822,8 @@ function flReport(){
     cols:['房間','尺寸','地坪 m²','牆面 m²','天花 m²'],w:[.2,.32,.16,.16,.16],num:[0,0,1,1,1],
     rows:FL.rooms.map(e=>{const a=eAreas(e),c=eCnt(e);return [e.name+(c>1?' ×'+c+'間':''),eDim(e),f(a.F*c),f(a.W*c),f(a.C*c)]})
       .concat(FL.walls.map(e=>{const a=eAreas(e),c=eCnt(e);return [e.name+(c>1?' ×'+c+'處':''),eDim(e),'',f(a.X*c),'']}))});
+  if((FL.wd||[]).length)secs.push({h:'門窗數量',sub:nb||'依 CAD 圖上的門窗編號計數',cols:['門窗編號','寬×高 cm','數量','單位'],w:[.3,.4,.18,.12],num:[0,0,1,0],
+    rows:FL.wd.map(w=>[w.c,w.s||'—',String(w.n*R.N),'樘'])});
   if(det.length)secs.push({h:'做法明細',sub:nb,cols:['房間／項目','部位','做法','施作數量','單位'],w:[.18,.08,.48,.16,.1],num:[0,0,0,1,0],rows:det});
   if(R.items.length)secs.push({h:'工項數量彙總',sub:nb,cols:['工項','施作數量','單位',''],w:[.6,.2,.1,.1],num:[0,1,0,0],
     rows:R.items.map(o=>[o.it.t,f(itAmt(o.it,o.m2),2),itU(o.it),''])});
@@ -876,13 +882,22 @@ $('cadFile').addEventListener('change',async e=>{
     const roles={};F.layerNames.forEach(n=>roles[n]=QE.guessRole(n));
     const titles=QE.findPlanTitles(F).map(t=>({...t,box:QE.planBoxNearTitle(F,t,roles)}))
       .filter(t=>t.box&&(t.box[2]-t.box[0])*u.unitToCm>300&&(t.box[3]-t.box[1])*u.unitToCm>300);
-    CAD={F,u,roles,titles,name:file.name.replace(/\.dxf$/i,'')};
+    CAD={F,u,roles,titles,name:file.name.replace(/\.dxf$/i,''),wdT:wdTable(F)};
     info.textContent=`${file.name}：找到 ${titles.length} 張平面圖（${u.why}）`;
     if(titles.length<2){cadRun(titles.length?0:-1);return}
     $('cadTitles').innerHTML=titles.map((t,i)=>`<button type="button" class="btn sec sm" onclick="cadRun(${i})">${esc(t.title)}${t.repeat>1?'（'+t.repeat+' 層）':''}</button>`).join('');
     $('cadModal').classList.remove('hidden');
   }catch(err){console.error(err);info.textContent='讀取失敗：'+err.message+'。請確認是 DXF 檔（CAD 另存新檔 → DXF）。'}
 });
+/* 門窗編號（D1、W3、FD5、SW2、DW1…）旁邊的「寬*高」文字 → 門窗尺寸表 {編號:[寬cm,高cm]} */
+const WD_RE=/^[A-Z]{0,2}[WD]\d{1,3}[A-Z]?$/i,SZ_RE=/^(\d{2,4})\s*[x×X*]\s*(\d{2,4})$/;
+function wdTable(F){
+  const labs=F.texts.filter(t=>WD_RE.test(t.s.trim())),dims=F.texts.filter(t=>SZ_RE.test(t.s.trim())),vote={};
+  for(const l of labs){let b=null,bd=Infinity;for(const d of dims){const dd=Math.hypot(d.x-l.x,d.y-l.y);if(dd<bd){bd=dd;b=d}}
+    if(!b||bd>4*(l.h||30))continue;const k=l.s.trim().toUpperCase(),v=b.s.trim().replace(SZ_RE,'$1*$2');(vote[k]=vote[k]||{})[v]=(vote[k][v]||0)+1}
+  const T={};for(const k in vote){const v=Object.entries(vote[k]).sort((a,b)=>b[1]-a[1])[0][0].split('*').map(Number);T[k]=v}
+  return T;
+}
 function closeCad(){$('cadModal').classList.add('hidden')}
 function cadExtents(F){ // 整張圖的範圍（取 1%～99% 避免遠處雜點）
   const xs=[],ys=[],step=Math.max(1,Math.floor(F.polys.length/20000));
@@ -900,17 +915,30 @@ async function cadRun(i){
     const P=Object.assign(QE.defaultParams(),{unitToCm:CAD.u.unitToCm});
     const A=QE.analyzeRegion(CAD.F,t?t.box:cadExtents(CAD.F),CAD.roles,P);
     const ok=A.rooms.filter(r=>r.status==='ok'&&r.area>0.3);
+    // 門窗：每個偵測到的開口 → 最近的門窗編號（1.5m 內）→ 用門窗尺寸表的寬×高
+    const bx=t?t.box:null,inB=q=>!bx||(q.x>=bx[0]&&q.x<=bx[2]&&q.y>=bx[1]&&q.y<=bx[3]);
+    const labs=CAD.F.texts.filter(q=>inB(q)&&WD_RE.test(q.s.trim())),lim=150/CAD.u.unitToCm;
+    let hit=0;
+    for(const o of A.openings){const c=o.box,cx=c.reduce((a,q)=>a+q[0],0)/c.length,cy=c.reduce((a,q)=>a+q[1],0)/c.length;
+      let b=null,bd=Infinity;for(const l of labs){const d=Math.hypot(l.x-cx,l.y-cy);if(d<bd){bd=d;b=l}}
+      const code=b&&bd<=lim?b.s.trim().toUpperCase():null,sz=code&&CAD.wdT[code];
+      o.code=code;o.area=sz?sz[0]*sz[1]/1e4:o.w/100*(o.kind==='door'?2.1:1.5);if(sz)hit++}
+    const wdCnt={};labs.forEach(l=>{const k=l.s.trim().toUpperCase();wdCnt[k]=(wdCnt[k]||0)+1});
+    FL.wd=Object.keys(wdCnt).sort((a,b)=>a.localeCompare(b,'en',{numeric:true})).map(k=>({c:k,s:CAD.wdT[k]?CAD.wdT[k].join('×'):'',n:wdCnt[k]}));
     const bad=A.rooms.filter(r=>r.status!=='ok'||!(r.area>0.3)).map(r=>r.name);
     FL.rooms=ok.map(r=>{
-      const op=A.openings.filter(o=>o.rooms&&o.rooms.indexOf(r.id)>=0).reduce((s,o)=>s+o.w/100*(o.kind==='door'?2.1:1.5),0);
+      const ops=A.openings.filter(o=>o.rooms&&o.rooms.indexOf(r.id)>=0),op=ops.reduce((s,o)=>s+o.area,0);
+      const cc={};ops.forEach(o=>{const k=o.code||(o.kind==='door'?'門':'窗')+'(無編號)';cc[k]=(cc[k]||0)+1});
       const ty=nameTy(r.name)||'living';
-      return {k:'R',name:r.name,ty,m:'ap',A:r.area.toFixed(2),P:r.perim.toFixed(2),open:op>0?op.toFixed(2):'',S:tyS(ty)};
+      return {k:'R',name:r.name,ty,m:'ap',A:r.area.toFixed(2),P:r.perim.toFixed(2),open:op>0?op.toFixed(2):'',S:tyS(ty),
+        wd:Object.entries(cc).map(([k,n])=>k+(n>1?'×'+n:'')).join('、')};
     });
     FL.name=t?t.title:CAD.name;FL.n=t&&t.repeat>1?String(t.repeat):'';
     flSave();fillFloorInputs();renderFloor();
     info.innerHTML=`✅ 已匯入「${esc(FL.name)}」：${ok.length} 間房間，已依房間類型套上預設做法。`
       +(bad.length?`<br>⚠ 沒圍起來、沒算到：${bad.map(esc).join('、')}（可用「新增房間」手動補）`:'')
-      +'<br>到下面「依房間類型選磁磚」一次換地磚、壁磚。門窗以門高 2.1m、窗高 1.5m 扣除。';
+      +`<br>門窗：${A.openings.length} 個開口，${hit} 個用圖上門窗編號的實際尺寸扣除${A.openings.length-hit?`，其他 ${A.openings.length-hit} 個用門高 2.1m、窗高 1.5m 估`:''}。`
+      +'<br>到下面「依房間類型選磁磚」一次換地磚、壁磚。';
   }catch(err){console.error(err);info.textContent='分析失敗：'+err.message}
 }
 fillFloorInputs();renderSaved();
