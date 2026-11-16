@@ -21,7 +21,7 @@ header{display:flex;align-items:center;gap:10px;padding:6px 2px 12px}
 .logo{height:52px;width:auto;flex:none;display:block}
 header h1{font-size:20px;margin:0;font-weight:900;letter-spacing:.5px}
 header p{margin:0;font-size:12px;color:var(--muted)}
-.tabs{display:grid;grid-template-columns:1fr 1fr;background:#dce4ee;border-radius:12px;padding:4px;gap:4px;position:sticky;top:0;z-index:5}
+.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;background:#dce4ee;border-radius:12px;padding:4px;gap:4px;position:sticky;top:0;z-index:5}
 .tabs button{border:0;background:transparent;padding:11px 6px;border-radius:9px;font:inherit;font-weight:700;color:var(--muted);font-size:15px}
 .tabs button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .tabs small{display:block;font-weight:400;font-size:11px}
@@ -96,6 +96,14 @@ details.card[open] summary{margin-bottom:10px}
 .modal.hidden{display:none}
 .mbox{background:#fff;border-radius:16px;padding:18px;width:100%;max-width:420px;text-align:center}
 input[type=text]{text-align:left}
+.sheet{text-align:left;max-width:520px;max-height:88vh;overflow-y:auto}
+.sheet-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:17px}
+.li .x.c{background:#dfe7f1;color:var(--steel)}
+.li .acts{display:flex;gap:6px;flex:none}
+.li .main{flex:1;min-width:0;cursor:pointer}
+.li .fin{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+.btn.sm{padding:9px;font-size:13.5px;width:100%;margin-top:6px}
+.warn{background:#fff4d6;color:#7a5600;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:8px}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1f3a5f">
@@ -119,6 +127,7 @@ input[type=text]{text-align:left}
   <div class="tabs">
     <button id="tabA" class="on" onclick="setMode('A')">面積<small>長 × 寬</small></button>
     <button id="tabV" onclick="setMode('V')">體積<small>長 × 寬 × 高</small></button>
+    <button id="tabF" onclick="setMode('F')">整層<small>逐間 → 材料總表</small></button>
   </div>
 
   <!-- 尺寸輸入 -->
@@ -257,6 +266,55 @@ input[type=text]{text-align:left}
     </details>
   </div>
 
+  <!-- ===== 整層平面模式 ===== -->
+  <div id="modeF" class="hidden">
+    <div class="card">
+      <h2><span class="dot"></span>樓層</h2>
+      <div class="grid g3">
+        <div><label>樓層名稱</label><input id="fName" type="text" placeholder="例：3F" style="font-size:16px"></div>
+        <div><label>預設牆高（m）</label><input id="fH" type="number" inputmode="decimal" placeholder="2.8"></div>
+        <div><label>相同樓層數</label><input id="fN" type="number" inputmode="numeric" placeholder="1"></div>
+      </div>
+      <div class="note">一間一間輸入房間，選地坪、牆面、天花的做法，就會算出整層材料。標準層一樣的話，「相同樓層數」填幾層就乘幾倍。</div>
+      <div class="grid" style="margin-top:10px;grid-template-columns:1fr auto auto;align-items:end">
+        <div><label>已存的樓層</label><select id="fSaved"></select></div>
+        <button class="btn sec" style="padding:11px 12px" onclick="flLoad()">載入</button>
+        <button class="btn sec" style="padding:11px 12px" onclick="flDel()">刪除</button>
+      </div>
+      <div class="actions" style="margin-top:10px">
+        <button class="btn" onclick="flStore()">💾 存這一層</button>
+        <button class="btn sec" onclick="flClear()">新的一層（清空）</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot"></span>房間 <span id="fRoomCnt" style="color:var(--muted);font-weight:400;font-size:13px"></span></h2>
+      <div id="fRooms"></div>
+      <button class="btn" style="width:100%;margin-top:10px" onclick="openEnt('R',-1)">＋ 新增房間</button>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot"></span>牆體、外牆、其他 <span id="fWallCnt" style="color:var(--muted);font-weight:400;font-size:13px"></span></h2>
+      <div class="note" style="margin-top:0">隔間砌磚、外牆、女兒牆等，用「長度 × 高度」或直接輸入面積。</div>
+      <div id="fWalls"></div>
+      <button class="btn sec" style="width:100%;margin-top:10px" onclick="openEnt('X',-1)">＋ 新增牆體／外牆／其他</button>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot"></span>整層材料總表 <span id="fTotN" style="color:var(--accent);font-size:13px"></span></h2>
+      <div class="big" style="margin-top:0">
+        <div class="stat"><div class="k">樓地板面積（房間合計）</div><div class="v"><span id="fArea">0</span><span class="u">m²</span></div></div>
+        <div class="stat alt"><div class="k">坪數</div><div class="v"><span id="fPing">0</span><span class="u">坪</span></div></div>
+      </div>
+      <div id="fMiss"></div>
+      <div class="subh">工項數量</div>
+      <div class="tbl" id="fItems"></div>
+      <div class="subh">材料總表（同種材料合併）</div>
+      <div class="tbl" id="fMats"></div>
+      <div class="note">「叫料」為整包、整塊進位後的數量；損耗已含在用量中。牆面面積＝周長 × 牆高 − 門窗。</div>
+    </div>
+  </div>
+
   <div class="card">
     <h2><span class="dot"></span>匯出報表</h2>
     <label>工程名稱（選填，會印在報表上）</label>
@@ -265,7 +323,7 @@ input[type=text]{text-align:left}
       <button class="btn" onclick="doExport('pdf')">📄 匯出 PDF</button>
       <button class="btn" style="background:#2b7a3d" onclick="doExport('xlsx')">📊 匯出 Excel</button>
     </div>
-    <div class="note">面積頁：有加入清單就匯出整份清單＋合併總用量，沒有則匯出目前選的工項（鋼筋區塊有展開時一併匯出）。體積頁：匯出混凝土、鋼筋、清運數量。</div>
+    <div class="note">整層頁：匯出房間面積、做法明細、工項與材料總表。面積頁：有加入清單就匯出整份清單＋合併總用量，沒有則匯出目前選的工項（鋼筋區塊有展開時一併匯出）。體積頁：匯出混凝土、鋼筋、清運數量。</div>
   </div>
 
   <div class="actions">
@@ -282,10 +340,38 @@ input[type=text]{text-align:left}
   <div class="note" style="text-align:center;margin-top:14px">
     <button class="btn" id="installBtn" style="display:none;width:100%;margin-bottom:10px">📲 安裝到手機</button>
     <span id="installTip">Android：瀏覽器選單 →「安裝應用程式」／iPhone：Safari 分享鈕 →「加入主畫面」</span>
-    <div style="margin-top:6px;opacity:.7">版本 v35</div>
+    <div style="margin-top:6px;opacity:.7">版本 v36</div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="modal hidden" id="entModal">
+  <div class="mbox sheet">
+    <div class="sheet-h"><b id="eTitle">新增房間</b><button class="linkbtn" style="font-size:15px" onclick="closeEnt()">取消</button></div>
+    <label id="eNameLab">房間名稱</label><input id="eName" type="text" style="font-size:16px">
+    <div class="chips" id="eNameChips" style="margin-top:6px"></div>
+    <div class="seg" id="eSeg" style="margin-top:10px"></div>
+    <div class="grid dims" style="margin-top:10px">
+      <div id="bL"><label id="eLlab">長（m）</label><input id="eL" type="number" inputmode="decimal" placeholder="0"></div>
+      <div id="bW"><label>寬（m）</label><input id="eW" type="number" inputmode="decimal" placeholder="0"></div>
+      <div id="bA"><label>面積（m²）</label><input id="eA" type="number" inputmode="decimal" placeholder="0"></div>
+      <div id="bP"><label>周長（m）</label><input id="eP" type="number" inputmode="decimal" placeholder="0"></div>
+      <div id="bH"><label id="eHlab">牆高（m）</label><input id="eH" type="number" inputmode="decimal"></div>
+      <div id="bN"><label id="eNlab">相同間數</label><input id="eN" type="number" inputmode="numeric" placeholder="1"></div>
+      <div id="bO"><label id="eOlab">扣門窗 m²</label><input id="eOpen" type="number" inputmode="decimal" placeholder="0"></div>
+    </div>
+    <div id="eSurf"></div>
+    <button class="btn" style="width:100%;margin-top:14px" onclick="saveEnt()">✔ 儲存</button>
+  </div>
+</div>
+<div class="modal hidden" id="pkModal" onclick="if(event.target===this)closePick()">
+  <div class="mbox sheet">
+    <div class="sheet-h"><b id="pkTitle">選做法</b><button class="linkbtn" style="font-size:15px" onclick="closePick()">取消</button></div>
+    <div class="chips" id="pkCats"></div>
+    <select id="pkM" style="margin-top:10px"></select>
+    <select id="pkI" style="margin-top:10px"></select>
+    <button class="btn" style="width:100%;margin-top:14px" onclick="pickAdd()">＋ 加入</button>
+  </div>
+</div>
 <div class="modal hidden" id="readyModal" onclick="if(event.target===this)closeReady()">
   <div class="mbox">
     <div style="font-weight:900;font-size:17px">✅ 檔案已產生</div>
@@ -318,14 +404,15 @@ function load(k){try{return localStorage.getItem(k)}catch(e){return null}}
 
 function setMode(m){
   mode=m;
-  $('tabA').classList.toggle('on',m==='A');$('tabV').classList.toggle('on',m==='V');
+  $('tabA').classList.toggle('on',m==='A');$('tabV').classList.toggle('on',m==='V');$('tabF').classList.toggle('on',m==='F');
   $('modeA').classList.toggle('hidden',m!=='A');$('modeV').classList.toggle('hidden',m!=='V');
+  $('modeF').classList.toggle('hidden',m!=='F');$('dimCard').classList.toggle('hidden',m==='F');
   $('bigA').classList.toggle('hidden',m!=='A');$('bigV').classList.toggle('hidden',m!=='V');
   $('Hbox').classList.toggle('hidden',m!=='V');
   $('inSeg').classList.toggle('hidden',m!=='A');applyIn();
 
   $('dimGrid').classList.toggle('g3',false);
-  store('qc_mode',m);calc();
+  store('qc_mode',m);if(m==='F')renderFloor();else calc();
 }
 
 function applyIn(){
@@ -345,6 +432,7 @@ $('wTruck').addEventListener('change',()=>{const v=$('wTruck').value;if(v!=='cus
 
 let last = {};
 function calc(){
+  if(mode==='F')return;
   const L=toM(num('L')),W=toM(num('W')),H=toM(num('H'));
   const N=Math.max(1,Math.round(num('N'))||1);
   const useM2=mode==='A'&&inMode==='m2';
@@ -379,6 +467,7 @@ function calc(){
 }
 
 function summary(){
+  if(mode==='F')return flSummary();
   const u=unit==='cm'?100:1, un=unit;
   const d=v=>f(v*u,2)+un;
   let s;
@@ -463,12 +552,13 @@ function addToList(){
   store('qc_wlist2',JSON.stringify(wList));renderList();$('listCard').open=true;toast('已加入清單');
 }
 function delList(k){wList.splice(k,1);store('qc_wlist2',JSON.stringify(wList));renderList()}
-function aggList(){
+function aggMats(pairs){ // [[工項, m²], ...] → 同種材料合併、算叫料
   const m=new Map();
-  wList.forEach(e=>{const it=WI[e.i];if(!it)return;wLines(it,e.m2).ls.forEach(l=>{
+  pairs.forEach(([it,m2])=>{if(!it)return;wLines(it,m2).ls.forEach(l=>{
     const key=l.n+'|'+l.u;const o=m.get(key)||{n:l.n,u:l.u,tq:0};o.tq+=l.tq;m.set(key,o)})});
   return [...m.values()].map(o=>({...o,r:ROUNDU.includes(o.u)?Math.ceil(o.tq-1e-9):null}));
 }
+function aggList(){return aggMats(wList.map(e=>[WI[e.i],e.m2]))}
 function renderList(){
   $('listCount').textContent=wList.length?wList.length+' 項':'';
   if(!wList.length){$('listBody').innerHTML='<div class="empty">把多個工項加入清單，可合併算出總用量（例如：浴室＝內牆打底＋壁磚＋地磚）。</div>';return}
@@ -505,13 +595,221 @@ function clearHist(){hist=[];store('qc_hist','[]');renderHist()}
 
 document.querySelectorAll('input,select').forEach(el=>{el.addEventListener('input',calc);el.addEventListener('change',calc)});
 
+/* ===== 整層平面：逐間輸入 → 材料總表 ===== */
+const WIT=new Map(WI.map(x=>[x.t,x]));
+const SURF={F:'地坪',W:'牆面',C:'天花',X:'做法'};
+const SDEF={F:{c:'地磚'},W:{c:'內牆'},C:{c:'油漆',k:'平頂'},X:{c:'隔間 / 砌磚'}};
+const RNAMES=['客廳','餐廳','廚房','主臥','臥室','浴室','陽台','走道','玄關','梯廳','儲藏室'];
+const XNAMES=['隔間牆','外牆','女兒牆','其他'];
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const pn=v=>{const x=parseFloat(v);return isFinite(x)&&x>0?x:0};
+function flNew(){return {name:'',h:'',n:'',rooms:[],walls:[]}}
+let FL=null;try{FL=JSON.parse(load('qc_floor')||'null')}catch(e){FL=null}
+if(!FL||!Array.isArray(FL.rooms))FL=flNew();if(!Array.isArray(FL.walls))FL.walls=[];
+let FLS={};try{FLS=JSON.parse(load('qc_floors')||'{}')||{}}catch(e){FLS={}}
+function flSave(){store('qc_floor',JSON.stringify(FL))}
+function flH(){return pn(FL.h)||2.8}
+function flN(){return Math.max(1,Math.round(pn(FL.n))||1)}
+function eH(e){const x=parseFloat(e.H);return isFinite(x)&&String(e.H).trim()!==''?Math.max(0,x):flH()} // 有填（含 0）就用，沒填用樓層預設
+function eCnt(e){return Math.max(1,Math.round(pn(e.n))||1)}
+function eAreas(e){ // 單間（未乘間數）各部位面積
+  const h=eH(e);
+  if(e.k==='X'){const a=e.m==='m2'?pn(e.A):pn(e.L)*h;return {X:Math.max(0,a-pn(e.open))}}
+  const fa=e.m==='ap'?pn(e.A):pn(e.L)*pn(e.W);
+  const pe=e.m==='ap'?pn(e.P):2*(pn(e.L)+pn(e.W));
+  return {F:fa,W:Math.max(0,pe*h-pn(e.open)),C:fa};
+}
+function eDim(e){
+  const h=eH(e);
+  if(e.k==='X')return e.m==='m2'?f(pn(e.A))+'m²':f(pn(e.L))+'×'+f(h)+'m';
+  return (e.m==='ap'?f(pn(e.A))+'m²／周長'+f(pn(e.P))+'m':f(pn(e.L))+'×'+f(pn(e.W))+'m')+' 高'+f(h);
+}
+function itU(it){return it&&it.su==='才'?'才':'m²'}
+function itAmt(it,m2){return it&&it.su==='才'?m2*10.89:m2}
+function flCalc(){
+  const N=flN(),items=new Map(),miss=new Set();let fa=0;
+  [...FL.rooms,...FL.walls].forEach(e=>{const a=eAreas(e),c=eCnt(e)*N;
+    if(e.k!=='X')fa+=a.F*c;
+    for(const s in a)((e.S||{})[s]||[]).forEach(t=>{if(!WIT.has(t)){miss.add(t);return}items.set(t,(items.get(t)||0)+a[s]*c)});
+  });
+  return {N,fa,items:[...items].map(([t,m2])=>({it:WIT.get(t),m2})),
+    mats:aggMats([...items].map(([t,m2])=>[WIT.get(t),m2])),miss:[...miss]};
+}
+function finTxt(e){
+  return Object.keys(e.S).filter(s=>e.S[s].length).map(s=>(e.k==='X'?'':SURF[s]+'：')+e.S[s].map(t=>(WIT.has(t)?'':'⚠')+t).join('、')).join('｜')||'⚠ 還沒選做法';
+}
+function entLI(e,k,i){
+  const a=eAreas(e),c=eCnt(e);
+  const ar=e.k==='X'?`面積 ${f(a.X*c)} m²`:`地坪 ${f(a.F*c)}・牆 ${f(a.W*c)}・天花 ${f(a.C*c)} m²`;
+  return `<div class="li"><div class="main" onclick="openEnt('${k}',${i})"><b>${esc(e.name)}</b>${c>1?` ×${c}${k==='R'?'間':'處'}`:''}
+    <span class="fin" style="color:var(--ink)">${eDim(e)}　${ar}</span><span class="fin">${esc(finTxt(e))}</span></div>
+    <div class="acts"><button class="x c" title="複製" onclick="copyEnt('${k}',${i})">⧉</button><button class="x" title="刪除" onclick="delEnt('${k}',${i})">✕</button></div></div>`;
+}
+function renderFloor(){
+  $('fRooms').innerHTML=FL.rooms.length?FL.rooms.map((e,i)=>entLI(e,'R',i)).join(''):'<div class="empty">還沒有房間，按下面「新增房間」。</div>';
+  $('fWalls').innerHTML=FL.walls.map((e,i)=>entLI(e,'X',i)).join('');
+  $('fRoomCnt').textContent=FL.rooms.length?FL.rooms.length+' 筆':'';
+  $('fWallCnt').textContent=FL.walls.length?FL.walls.length+' 筆':'';
+  renderFloorTot();
+}
+function renderFloorTot(){
+  const R=flCalc();
+  $('fTotN').textContent=R.N>1?`（${R.N} 層合計）`:'';
+  $('fArea').textContent=f(R.fa);$('fPing').textContent=f(R.fa*0.3025);
+  $('fMiss').innerHTML=R.miss.length?`<div class="warn">⚠ 這些做法在新版材料分析裡找不到，沒有算進去，請重新選：${R.miss.map(esc).join('、')}</div>`:'';
+  $('fItems').innerHTML=R.items.length?R.items.map(o=>`<div class="tr lab"><div class="n">${esc(o.it.t)}</div><div class="q">${f(itAmt(o.it,o.m2),2)}<small>${itU(o.it)}</small></div></div>`).join(''):'<div class="tr"><div class="empty">尚無資料</div></div>';
+  $('fMats').innerHTML=R.mats.length?R.mats.map(rowHTML).join(''):'<div class="tr"><div class="empty">尚無資料</div></div>';
+}
+function fillFloorInputs(){$('fName').value=FL.name||'';$('fH').value=FL.h||'';$('fN').value=FL.n||'';}
+[['fName','name'],['fH','h'],['fN','n']].forEach(([id,k])=>$(id).addEventListener('input',()=>{FL[k]=$(id).value;flSave();if(k!=='name')renderFloor()}));
+function renderSaved(){
+  const ks=Object.keys(FLS);
+  $('fSaved').innerHTML=ks.length?ks.map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join(''):'<option value="">（還沒存）</option>';
+}
+function flStore(){
+  const nm=(FL.name||'').trim();if(!nm){toast('請先填樓層名稱');$('fName').focus();return}
+  if(!FL.rooms.length&&!FL.walls.length){toast('還沒有輸入房間');return}
+  if(FLS[nm]&&!confirm(`「${nm}」已經存過，要覆蓋嗎？`))return;
+  FLS[nm]=JSON.parse(JSON.stringify(FL));store('qc_floors',JSON.stringify(FLS));renderSaved();$('fSaved').value=nm;toast('已存「'+nm+'」');
+}
+function flLoad(){
+  const nm=$('fSaved').value;if(!nm||!FLS[nm])return;
+  if((FL.rooms.length||FL.walls.length)&&!confirm(`載入「${nm}」？目前畫面上的資料會被換掉（已存的樓層不受影響）。`))return;
+  FL=JSON.parse(JSON.stringify(FLS[nm]));flSave();fillFloorInputs();renderFloor();toast('已載入「'+nm+'」');
+}
+function flDel(){
+  const nm=$('fSaved').value;if(!nm||!FLS[nm])return;
+  if(!confirm(`刪除已存的「${nm}」？刪掉就找不回來。`))return;
+  delete FLS[nm];store('qc_floors',JSON.stringify(FLS));renderSaved();toast('已刪除');
+}
+function flClear(){
+  if((FL.rooms.length||FL.walls.length)&&!confirm('清空畫面，開始輸入新的一層？（已存的樓層不受影響，沒存的會不見）'))return;
+  FL=flNew();flSave();fillFloorInputs();renderFloor();
+}
+function listOf(k){return k==='R'?FL.rooms:FL.walls}
+function copyEnt(k,i){const L=listOf(k),e=JSON.parse(JSON.stringify(L[i]));e.name+='（複製）';L.splice(i+1,0,e);flSave();renderFloor();toast('已複製')}
+function delEnt(k,i){const L=listOf(k);if(!confirm(`刪除「${L[i].name}」？`))return;L.splice(i,1);flSave();renderFloor()}
+
+/* ---- 房間／牆體編輯 ---- */
+let ed=null,edK='R',edI=-1;
+const SEGS={R:[['dim','長×寬'],['ap','面積＋周長']],X:[['dim','長度×高度'],['m2','輸入 m²']]};
+const EF=[['eL','L'],['eW','W'],['eA','A'],['eP','P'],['eH','H'],['eN','n'],['eOpen','open']];
+function openEnt(k,i){
+  edK=k;edI=i;
+  ed=i>=0?JSON.parse(JSON.stringify(listOf(k)[i])):(k==='R'?{k:'R',name:'',m:'dim',S:{F:[],W:[],C:[]}}:{k:'X',name:'',m:'dim',S:{X:[]}});
+  $('eTitle').textContent=(i>=0?'修改':'新增')+(k==='R'?'房間':'牆體／外牆／其他');
+  $('eNameLab').textContent=k==='R'?'房間名稱':'名稱';
+  $('eName').value=ed.name||'';
+  $('eNameChips').innerHTML=(k==='R'?RNAMES:XNAMES).map(n=>`<button type="button" data-n="${n}">${n}</button>`).join('');
+  EF.forEach(([id,p])=>$(id).value=ed[p]||'');
+  $('eH').placeholder=String(flH());
+  $('eLlab').textContent=k==='R'?'長（m）':'長度（m）';$('eHlab').textContent=k==='R'?'牆高（m）':'高度（m）';
+  $('eNlab').textContent=k==='R'?'相同間數':'數量（處）';$('eOlab').textContent=k==='R'?'扣門窗 m²':'扣開口 m²';
+  edLayout();renderEdSurf();
+  $('entModal').classList.remove('hidden');$('entModal').querySelector('.sheet').scrollTop=0;
+}
+function closeEnt(){$('entModal').classList.add('hidden');ed=null}
+function edLayout(){
+  $('eSeg').innerHTML=SEGS[edK].map(([v,t])=>`<button type="button" data-i="${v}" class="${ed.m===v?'on':''}">${t}</button>`).join('');
+  const show={R:{dim:'LWHNO',ap:'APHNO'},X:{dim:'LHNO',m2:'ANO'}}[edK][ed.m];
+  'LWAPHNO'.split('').forEach(c=>$('b'+c).classList.toggle('hidden',!show.includes(c)));
+  edPrev();
+}
+$('eSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!ed)return;ed.m=b.dataset.i;edLayout()});
+$('eNameChips').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!ed)return;$('eName').value=b.dataset.n;ed.name=b.dataset.n});
+$('eName').addEventListener('input',()=>{if(ed)ed.name=$('eName').value});
+EF.forEach(([id,p])=>$(id).addEventListener('input',()=>{if(!ed)return;ed[p]=$(id).value;edPrev()}));
+function edPrev(){
+  if(!ed)return;const a=eAreas(ed),c=eCnt(ed);
+  for(const s in a){const el=$('ea_'+s);if(el)el.textContent=f(a[s]*c)+' m²'+(c>1?`（${c}${edK==='R'?'間':'處'}）`:'')}
+}
+function renderEdSurf(){
+  $('eSurf').innerHTML=Object.keys(ed.S).map(s=>`<div class="subh" style="display:flex;justify-content:space-between">${edK==='X'?'做法':SURF[s]+'做法'}<span id="ea_${s}" style="color:var(--accent)"></span></div>`
+    +ed.S[s].map((t,j)=>`<div class="li"><span>${WIT.has(t)?'':'⚠ '}${esc(t)}</span><button type="button" class="x" onclick="edDelIt('${s}',${j})">✕</button></div>`).join('')
+    +`<button type="button" class="btn sec sm" onclick="openPick('${s}')">＋ 加${edK==='X'?'':SURF[s]}做法</button>`).join('');
+  edPrev();
+}
+function edDelIt(s,j){ed.S[s].splice(j,1);renderEdSurf()}
+function saveEnt(){
+  if(!ed)return;
+  const a=eAreas(ed);
+  if(!Object.values(a).some(v=>v>0)){toast(edK==='R'?'請輸入長、寬（或面積）':'請輸入長度（或面積）');return}
+  const L=listOf(edK);
+  ed.name=(ed.name||'').trim()||(edK==='R'?'房間'+(L.length+1):'項目'+(L.length+1));
+  if(edI>=0)L[edI]=ed;else L.push(ed);
+  flSave();closeEnt();renderFloor();
+}
+
+/* ---- 選做法 ---- */
+let pk={s:'F',c:'',m:''};const PKMEM={};
+const PCATS=[...new Set(WI.map(x=>x.c))];
+function openPick(s){
+  pk.s=s;const mem=PKMEM[s];pk.c=mem?mem.c:SDEF[s].c;pk.m=mem?mem.m:null;
+  $('pkTitle').textContent='選'+(s==='X'?'':SURF[s])+'做法';
+  renderPkCats();fillPkM();fillPkI(mem?mem.t:null);
+  $('pkModal').classList.remove('hidden');
+}
+function closePick(){$('pkModal').classList.add('hidden')}
+function renderPkCats(){$('pkCats').innerHTML=PCATS.map(c=>`<button type="button" data-c="${c}" class="${c===pk.c?'on':''}">${c}</button>`).join('')}
+$('pkCats').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pk.c=b.dataset.c;pk.m=null;renderPkCats();fillPkM();fillPkI()});
+function fillPkM(){
+  const ms=[...new Set(WI.filter(x=>x.c===pk.c).map(x=>x.m||''))],sel=$('pkM');
+  if(pk.m==null||!ms.includes(pk.m))pk.m=ms[0];
+  sel.style.display=ms.length<2?'none':'';
+  sel.innerHTML=ms.map(m=>`<option value="${esc(m)}">${esc(m||'其他')}</option>`).join('');sel.value=pk.m;
+}
+$('pkM').addEventListener('change',()=>{pk.m=$('pkM').value;fillPkI()});
+function fillPkI(keepT){
+  const sel=$('pkI');sel.innerHTML='';
+  const its=WI.filter(x=>x.c===pk.c&&(x.m||'')===pk.m);
+  its.forEach(x=>{const o=document.createElement('option');o.value=x.t;o.textContent=x.s||x.t;sel.appendChild(o)});
+  const k=SDEF[pk.s].k;
+  if(keepT&&its.some(x=>x.t===keepT))sel.value=keepT;
+  else if(k){const h=its.find(x=>x.t.includes(k));if(h)sel.value=h.t}
+}
+function pickAdd(){
+  const t=$('pkI').value;if(!t||!ed)return;
+  if(ed.S[pk.s].includes(t)){toast('這個做法已經加過了');return}
+  ed.S[pk.s].push(t);PKMEM[pk.s]={c:pk.c,m:pk.m,t};closePick();renderEdSurf();
+}
+
+/* ---- 文字／報表 ---- */
+function flSummary(){
+  const R=flCalc();
+  let s=`【整層材料】${FL.name||''}${R.N>1?'（'+R.N+'層合計）':''}\n樓地板面積：${f(R.fa)} m²（${f(R.fa*0.3025)} 坪）\n`;
+  s+='\n【房間】\n'+FL.rooms.map(e=>`・${e.name}${eCnt(e)>1?' ×'+eCnt(e)+'間':''}：${eDim(e)}；${finTxt(e)}`).join('\n');
+  if(FL.walls.length)s+='\n\n【牆體／外牆／其他】\n'+FL.walls.map(e=>`・${e.name}${eCnt(e)>1?' ×'+eCnt(e)+'處':''}：${eDim(e)}；${finTxt(e)}`).join('\n');
+  s+='\n\n【工項數量】\n'+R.items.map(o=>`・${o.it.t}：${f(itAmt(o.it,o.m2),2)} ${itU(o.it)}`).join('\n');
+  s+='\n\n【材料總表】\n'+R.mats.map(lineTxt).join('\n');
+  return s;
+}
+function flReport(){
+  const R=flCalc(),secs=[];if(!FL.rooms.length&&!FL.walls.length)return secs;
+  const nb=R.N>1?`以下數量為 ${R.N} 層合計（單層 × ${R.N}）`:'';
+  const det=[];
+  FL.rooms.forEach(e=>{const a=eAreas(e),c=eCnt(e)*R.N;['F','W','C'].forEach(s=>(e.S[s]||[]).forEach(t=>{const it=WIT.get(t);if(it)det.push([e.name+(eCnt(e)>1?' ×'+eCnt(e):''),SURF[s],t,f(itAmt(it,a[s]*c),2),itU(it)])}))});
+  FL.walls.forEach(e=>{const a=eAreas(e),c=eCnt(e)*R.N;(e.S.X||[]).forEach(t=>{const it=WIT.get(t);if(it)det.push([e.name+(eCnt(e)>1?' ×'+eCnt(e):''),'—',t,f(itAmt(it,a.X*c),2),itU(it)])})});
+  secs.push({h:'房間面積',sub:`樓地板面積 ${f(R.fa)} m²（${f(R.fa*0.3025)} 坪）${R.N>1?'，'+R.N+' 層合計':''}；表內為單層，牆面＝周長×牆高−門窗`,
+    cols:['房間','尺寸','地坪 m²','牆面 m²','天花 m²'],w:[.2,.32,.16,.16,.16],num:[0,0,1,1,1],
+    rows:FL.rooms.map(e=>{const a=eAreas(e),c=eCnt(e);return [e.name+(c>1?' ×'+c+'間':''),eDim(e),f(a.F*c),f(a.W*c),f(a.C*c)]})
+      .concat(FL.walls.map(e=>{const a=eAreas(e),c=eCnt(e);return [e.name+(c>1?' ×'+c+'處':''),eDim(e),'',f(a.X*c),'']}))});
+  if(det.length)secs.push({h:'做法明細',sub:nb,cols:['房間／項目','部位','做法','施作數量','單位'],w:[.18,.08,.48,.16,.1],num:[0,0,0,1,0],rows:det});
+  if(R.items.length)secs.push({h:'工項數量彙總',sub:nb,cols:['工項','施作數量','單位',''],w:[.6,.2,.1,.1],num:[0,1,0,0],
+    rows:R.items.map(o=>[o.it.t,f(itAmt(o.it,o.m2),2),itU(o.it),''])});
+  if(R.mats.length)secs.push({h:'材料總表',sub:nb,cols:['材料','用量','單位','叫料'],w:[.46,.2,.14,.2],num:[0,1,0,1],
+    rows:R.mats.map(l=>[l.n,qf(l.tq,l.u),l.u,l.r!==null?f(l.r,0):''])});
+  return secs;
+}
+fillFloorInputs();renderSaved();
+
 renderHist();
 initW();
-setMode(load('qc_mode')==='V'?'V':'A');
+setMode(['V','F'].includes(load('qc_mode'))?load('qc_mode'):'A');
 /* ===== 匯出 PDF / Excel（不需外部套件，離線可用） ===== */
 function reportData(){
   const secs=[];
-  if(mode==='A'){
+  if(mode==='F')secs.push(...flReport());
+  else if(mode==='A'){
     if(wList.length){
       secs.push({h:'工項清單',cols:['工項','尺寸','施作數量','單位'],w:[.44,.32,.14,.10],num:[0,0,1,0],
         rows:wList.map(e=>{const it=WI[e.i];return [it.t,e.d,f(it.su==='才'?e.m2*10.89:e.m2,2),it.su==='才'?'才':'m²']})});
@@ -544,7 +842,7 @@ function reportData(){
         ['清運車次',f(last.trips,0),'車次',`每車 ${$('wCapV').value} m³／${$('wCapT').value} 噸`]]});
   }
   const d=new Date(),p2=n=>String(n).padStart(2,'0');
-  return {title:'工程數量計算機',proj:$('expProj').value.trim(),
+  return {title:'工程數量計算機',proj:$('expProj').value.trim()||(mode==='F'?(FL.name||'').trim():''),
     time:`${d.getFullYear()}/${p2(d.getMonth()+1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`,
     stamp:`${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}_${p2(d.getHours())}${p2(d.getMinutes())}`,secs};
 }
@@ -663,7 +961,7 @@ function buildXLSX(R){
 let readyFile=null;
 async function doExport(kind){
   const R=reportData();
-  if(!R.secs.length){toast(mode==='A'?'請先輸入尺寸，或把工項加入清單':'請先輸入長、寬、高');return}
+  if(!R.secs.length){toast(mode==='F'?'請先新增房間':mode==='A'?'請先輸入尺寸，或把工項加入清單':'請先輸入長、寬、高');return}
   store('qc_proj',$('expProj').value);
   toast(kind==='pdf'?'產生 PDF 中…':'產生 Excel 中…');
   try{
