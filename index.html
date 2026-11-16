@@ -275,7 +275,10 @@ input[type=text]{text-align:left}
         <div><label>預設牆高（m）</label><input id="fH" type="number" inputmode="decimal" placeholder="2.8"></div>
         <div><label>相同樓層數</label><input id="fN" type="number" inputmode="numeric" placeholder="1"></div>
       </div>
-      <div class="note">一間一間輸入房間，選地坪、牆面、天花的做法，就會算出整層材料。標準層一樣的話，「相同樓層數」填幾層就乘幾倍。</div>
+      <div class="note">丟 CAD 平面圖會自動抓房間；也可以一間一間手動輸入。標準層一樣的話，「相同樓層數」填幾層就乘幾倍。</div>
+      <button class="btn" style="width:100%;margin-top:10px;background:#2b7a3d" onclick="$('cadFile').click()">📐 匯入 CAD 平面圖（DXF）</button>
+      <input type="file" id="cadFile" accept=".dxf,.DXF" class="hidden">
+      <div class="note" id="cadInfo"></div>
       <div class="grid" style="margin-top:10px;grid-template-columns:1fr auto auto;align-items:end">
         <div><label>已存的樓層</label><select id="fSaved"></select></div>
         <button class="btn sec" style="padding:11px 12px" onclick="flLoad()">載入</button>
@@ -285,6 +288,12 @@ input[type=text]{text-align:left}
         <button class="btn" onclick="flStore()">💾 存這一層</button>
         <button class="btn sec" onclick="flClear()">新的一層（清空）</button>
       </div>
+    </div>
+
+    <div class="card hidden" id="fTypeCard">
+      <h2><span class="dot"></span>依房間類型選磁磚／做法</h2>
+      <div class="note" style="margin-top:0">同一類房間一次換，例如所有浴廁的地磚、壁磚。換完個別房間還是可以單獨改。</div>
+      <div id="fTypes"></div>
     </div>
 
     <div class="card">
@@ -340,13 +349,14 @@ input[type=text]{text-align:left}
   <div class="note" style="text-align:center;margin-top:14px">
     <button class="btn" id="installBtn" style="display:none;width:100%;margin-bottom:10px">📲 安裝到手機</button>
     <span id="installTip">Android：瀏覽器選單 →「安裝應用程式」／iPhone：Safari 分享鈕 →「加入主畫面」</span>
-    <div style="margin-top:6px;opacity:.7">版本 v36</div>
+    <div style="margin-top:6px;opacity:.7">版本 v37</div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
 <div class="modal hidden" id="entModal">
   <div class="mbox sheet">
     <div class="sheet-h"><b id="eTitle">新增房間</b><button class="linkbtn" style="font-size:15px" onclick="closeEnt()">取消</button></div>
+    <div id="eDimWrap">
     <label id="eNameLab">房間名稱</label><input id="eName" type="text" style="font-size:16px">
     <div class="chips" id="eNameChips" style="margin-top:6px"></div>
     <div class="seg" id="eSeg" style="margin-top:10px"></div>
@@ -358,9 +368,17 @@ input[type=text]{text-align:left}
       <div id="bH"><label id="eHlab">牆高（m）</label><input id="eH" type="number" inputmode="decimal"></div>
       <div id="bN"><label id="eNlab">相同間數</label><input id="eN" type="number" inputmode="numeric" placeholder="1"></div>
       <div id="bO"><label id="eOlab">扣門窗 m²</label><input id="eOpen" type="number" inputmode="decimal" placeholder="0"></div>
+      <div id="bY"><label>房間類型</label><select id="eTy" style="font-size:15px"></select></div>
+    </div>
     </div>
     <div id="eSurf"></div>
     <button class="btn" style="width:100%;margin-top:14px" onclick="saveEnt()">✔ 儲存</button>
+  </div>
+</div>
+<div class="modal hidden" id="cadModal" onclick="if(event.target===this)closeCad()">
+  <div class="mbox sheet">
+    <div class="sheet-h"><b>要算哪一張平面圖？</b><button class="linkbtn" style="font-size:15px" onclick="closeCad()">取消</button></div>
+    <div id="cadTitles"></div>
   </div>
 </div>
 <div class="modal hidden" id="pkModal" onclick="if(event.target===this)closePick()">
@@ -650,7 +668,7 @@ function renderFloor(){
   $('fWalls').innerHTML=FL.walls.map((e,i)=>entLI(e,'X',i)).join('');
   $('fRoomCnt').textContent=FL.rooms.length?FL.rooms.length+' 筆':'';
   $('fWallCnt').textContent=FL.walls.length?FL.walls.length+' 筆':'';
-  renderFloorTot();
+  renderTypes();renderFloorTot();
 }
 function renderFloorTot(){
   const R=flCalc();
@@ -698,6 +716,8 @@ function openEnt(k,i){
   edK=k;edI=i;
   ed=i>=0?JSON.parse(JSON.stringify(listOf(k)[i])):(k==='R'?{k:'R',name:'',m:'dim',S:{F:[],W:[],C:[]}}:{k:'X',name:'',m:'dim',S:{X:[]}});
   $('eTitle').textContent=(i>=0?'修改':'新增')+(k==='R'?'房間':'牆體／外牆／其他');
+  $('eDimWrap').classList.remove('hidden');
+  $('eTy').innerHTML=RTYPES.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');$('eTy').value=roomTy(ed);
   $('eNameLab').textContent=k==='R'?'房間名稱':'名稱';
   $('eName').value=ed.name||'';
   $('eNameChips').innerHTML=(k==='R'?RNAMES:XNAMES).map(n=>`<button type="button" data-n="${n}">${n}</button>`).join('');
@@ -711,16 +731,19 @@ function openEnt(k,i){
 function closeEnt(){$('entModal').classList.add('hidden');ed=null}
 function edLayout(){
   $('eSeg').innerHTML=SEGS[edK].map(([v,t])=>`<button type="button" data-i="${v}" class="${ed.m===v?'on':''}">${t}</button>`).join('');
-  const show={R:{dim:'LWHNO',ap:'APHNO'},X:{dim:'LHNO',m2:'ANO'}}[edK][ed.m];
-  'LWAPHNO'.split('').forEach(c=>$('b'+c).classList.toggle('hidden',!show.includes(c)));
+  const show={R:{dim:'LWHNOY',ap:'APHNOY'},X:{dim:'LHNO',m2:'ANO'}}[edK][ed.m];
+  'LWAPHNOY'.split('').forEach(c=>$('b'+c).classList.toggle('hidden',!show.includes(c)));
   edPrev();
 }
 $('eSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!ed)return;ed.m=b.dataset.i;edLayout()});
-$('eNameChips').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!ed)return;$('eName').value=b.dataset.n;ed.name=b.dataset.n});
+$('eNameChips').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!ed)return;$('eName').value=b.dataset.n;ed.name=b.dataset.n;
+  if(edK==='R'){const ty=nameTy(b.dataset.n);if(ty){ed.ty=ty;$('eTy').value=ty}
+    if(edI<0&&!Object.values(ed.S).some(a=>a.length)){ed.S=tyS(roomTy(ed));renderEdSurf()}}}); // 新房間還沒選做法 → 套這類房間的做法
+$('eTy').addEventListener('change',()=>{if(ed)ed.ty=$('eTy').value});
 $('eName').addEventListener('input',()=>{if(ed)ed.name=$('eName').value});
 EF.forEach(([id,p])=>$(id).addEventListener('input',()=>{if(!ed)return;ed[p]=$(id).value;edPrev()}));
 function edPrev(){
-  if(!ed)return;const a=eAreas(ed),c=eCnt(ed);
+  if(!ed||edK==='T')return;const a=eAreas(ed),c=eCnt(ed);
   for(const s in a){const el=$('ea_'+s);if(el)el.textContent=f(a[s]*c)+' m²'+(c>1?`（${c}${edK==='R'?'間':'處'}）`:'')}
 }
 function renderEdSurf(){
@@ -732,6 +755,8 @@ function renderEdSurf(){
 function edDelIt(s,j){ed.S[s].splice(j,1);renderEdSurf()}
 function saveEnt(){
   if(!ed)return;
+  if(edK==='T'){FL.ts=FL.ts||{};FL.ts[ed.ty]=clone(ed.S);let c=0;FL.rooms.forEach(e=>{if(roomTy(e)===ed.ty){e.S=clone(ed.S);c++}});
+    flSave();closeEnt();renderFloor();toast(`已套用到 ${c} 間`);return}
   const a=eAreas(ed);
   if(!Object.values(a).some(v=>v>0)){toast(edK==='R'?'請輸入長、寬（或面積）':'請輸入長度（或面積）');return}
   const L=listOf(edK);
@@ -799,6 +824,94 @@ function flReport(){
   if(R.mats.length)secs.push({h:'材料總表',sub:nb,cols:['材料','用量','單位','叫料'],w:[.46,.2,.14,.2],num:[0,1,0,1],
     rows:R.mats.map(l=>[l.n,qf(l.tq,l.u),l.u,l.r!==null?f(l.r,0):''])});
   return secs;
+}
+
+/* ---- 房間類型（同估算程式的分類）＋各類預設做法 ---- */
+const RTYPES=[
+  {id:'wet',name:'浴廁',re:/浴|廁|衛|盥洗|淋浴|WC|化妝室|洗手間|BATH|TOILET/i},
+  {id:'kitchen',name:'廚房',re:/廚|KITCHEN/i},
+  {id:'balcony',name:'陽台／露台',re:/陽台|露台|平台|曬衣|花台|BALCONY|TERRACE/i},
+  {id:'public',name:'公共空間（梯廳、走道、樓梯）',re:/梯廳|電梯廳|走廊|走道|大廳|門廳|玄關|安全梯|樓梯|梯間|LOBBY|HALL|CORRIDOR|騎樓|通道/i},
+  {id:'living',name:'居室（客餐廳、臥室）',re:/客廳|餐廳|臥|起居|書房|和室|房間|多功能|儲藏|儲物|更衣|工作室|辦公|會議|店舖|店鋪|商場|LIVING|DINING|BED|ROOM|OFFICE|STORE/i},
+  {id:'service',name:'機房／設備',re:/機房|機電|設備|配電|水箱|發電|垃圾|管道|車道|停車|PS|EPS|WPS|MECH/i}];
+const PNT_W='油漆-乳膠漆 牆面（批土2道＋磨平）',PNT_C='油漆-乳膠漆 平頂（機械磨光＋黑白土）',CEM_W='油漆-水泥漆 牆面（批土2道＋磨平）',CEM_C='油漆-水泥漆 平頂（機械磨光＋黑白土）';
+const PLS='內牆1:3水泥粉刷（打底＋粉光）',BASE='內牆1:3水泥打底',T30='30×30地磚（硬底）',T60='60×60地磚（硬底）',WT='30×60壁磚';
+const TDEF={wet:{F:[T30],W:[BASE,WT],C:[]},kitchen:{F:[T60],W:[BASE,WT],C:[PNT_C]},balcony:{F:[T30],W:[],C:[CEM_C]},
+  public:{F:[T60],W:[PLS,PNT_W],C:[PNT_C]},living:{F:[T60],W:[PLS,PNT_W],C:[PNT_C]},service:{F:['地坪水泥砂漿打底（5cm）'],W:[PLS,CEM_W],C:[CEM_C]}};
+const clone=o=>JSON.parse(JSON.stringify(o));
+function nameTy(n){const t=RTYPES.find(t=>t.re.test(n||''));return t?t.id:null}
+function roomTy(e){return e.ty||nameTy(e.name)||'living'}
+function tyName(id){const t=RTYPES.find(t=>t.id===id);return t?t.name:id}
+function tyS(ty){return clone((FL.ts&&FL.ts[ty])||TDEF[ty]||TDEF.living)}
+function renderTypes(){
+  const by={};FL.rooms.forEach(e=>{const t=roomTy(e);(by[t]=by[t]||[]).push(e)});
+  const ids=RTYPES.map(t=>t.id).filter(id=>by[id]);
+  $('fTypeCard').classList.toggle('hidden',!ids.length);
+  $('fTypes').innerHTML=ids.map(id=>{const rs=by[id],same=rs.every(e=>JSON.stringify(e.S)===JSON.stringify(rs[0].S));
+    return `<div class="li"><div class="main" onclick="openType('${id}')"><b>${tyName(id)}</b>　${rs.length} 間<span class="fin">${same?esc(finTxt(rs[0])):'各間做法不一樣（按「換做法」可以統一）'}</span></div>
+      <button class="btn sec" style="padding:8px 12px;font-size:13px;flex:none" onclick="openType('${id}')">換做法</button></div>`}).join('');
+}
+function openType(ty){
+  const rs=FL.rooms.filter(e=>roomTy(e)===ty);
+  edK='T';edI=-1;ed={k:'T',ty,S:rs.length?clone(rs[0].S):tyS(ty)};
+  $('eTitle').textContent=`「${tyName(ty)}」的做法（套用到 ${rs.length} 間）`;
+  $('eDimWrap').classList.add('hidden');renderEdSurf();
+  $('entModal').classList.remove('hidden');$('entModal').querySelector('.sheet').scrollTop=0;
+}
+
+/* ---- 匯入 CAD 平面圖（DXF）：用 cad-engine.js（估算程式的核心）自動找房間 ---- */
+let CAD=null;
+const tick=()=>new Promise(r=>setTimeout(r,30));
+function loadEngine(){return new Promise((res,rej)=>{if(window.QE)return res();const s=document.createElement('script');s.src='cad-engine.js';s.onload=res;s.onerror=()=>rej(new Error('無法載入圖面程式'));document.head.appendChild(s)})}
+$('cadFile').addEventListener('change',async e=>{
+  const file=e.target.files[0];e.target.value='';if(!file)return;
+  const info=$('cadInfo');
+  try{
+    info.textContent=`讀取 ${file.name}（${(file.size/1048576).toFixed(1)} MB）…`;await tick();
+    await loadEngine();
+    const u8=new Uint8Array(await file.arrayBuffer());
+    if(new TextDecoder('latin1').decode(u8.subarray(0,18))==='AutoCAD Binary DXF'){info.textContent='這是 Binary DXF，請在 CAD 另存新檔 → DXF，選 ASCII 格式再試。';return}
+    info.textContent='解析圖面中…（大圖要等一下）';await tick();
+    const doc=QE.parseDXF(u8),F=QE.flattenDXF(doc),u=QE.detectUnit(F,doc.insunits);
+    const roles={};F.layerNames.forEach(n=>roles[n]=QE.guessRole(n));
+    const titles=QE.findPlanTitles(F).map(t=>({...t,box:QE.planBoxNearTitle(F,t,roles)}))
+      .filter(t=>t.box&&(t.box[2]-t.box[0])*u.unitToCm>300&&(t.box[3]-t.box[1])*u.unitToCm>300);
+    CAD={F,u,roles,titles,name:file.name.replace(/\.dxf$/i,'')};
+    info.textContent=`${file.name}：找到 ${titles.length} 張平面圖（${u.why}）`;
+    if(titles.length<2){cadRun(titles.length?0:-1);return}
+    $('cadTitles').innerHTML=titles.map((t,i)=>`<button type="button" class="btn sec sm" onclick="cadRun(${i})">${esc(t.title)}${t.repeat>1?'（'+t.repeat+' 層）':''}</button>`).join('');
+    $('cadModal').classList.remove('hidden');
+  }catch(err){console.error(err);info.textContent='讀取失敗：'+err.message+'。請確認是 DXF 檔（CAD 另存新檔 → DXF）。'}
+});
+function closeCad(){$('cadModal').classList.add('hidden')}
+function cadExtents(F){ // 整張圖的範圍（取 1%～99% 避免遠處雜點）
+  const xs=[],ys=[],step=Math.max(1,Math.floor(F.polys.length/20000));
+  for(let i=0;i<F.polys.length;i+=step){const b=F.polys[i].bb;xs.push((b[0]+b[2])/2);ys.push((b[1]+b[3])/2)}
+  if(!xs.length)return [0,0,100,100];
+  xs.sort((a,b)=>a-b);ys.sort((a,b)=>a-b);const q=(a,f)=>a[Math.min(a.length-1,Math.floor(a.length*f))];
+  return [q(xs,.01),q(ys,.01),q(xs,.99),q(ys,.99)];
+}
+async function cadRun(i){
+  closeCad();if(!CAD)return;
+  if(FL.rooms.length&&!confirm('匯入會換掉目前畫面上的房間（牆體／外牆不動），要繼續嗎？'))return;
+  const info=$('cadInfo'),t=i>=0?CAD.titles[i]:null;
+  info.textContent=`分析「${t?t.title:CAD.name}」的房間中…`;await tick();
+  try{
+    const P=Object.assign(QE.defaultParams(),{unitToCm:CAD.u.unitToCm});
+    const A=QE.analyzeRegion(CAD.F,t?t.box:cadExtents(CAD.F),CAD.roles,P);
+    const ok=A.rooms.filter(r=>r.status==='ok'&&r.area>0.3);
+    const bad=A.rooms.filter(r=>r.status!=='ok'||!(r.area>0.3)).map(r=>r.name);
+    FL.rooms=ok.map(r=>{
+      const op=A.openings.filter(o=>o.rooms&&o.rooms.indexOf(r.id)>=0).reduce((s,o)=>s+o.w/100*(o.kind==='door'?2.1:1.5),0);
+      const ty=nameTy(r.name)||'living';
+      return {k:'R',name:r.name,ty,m:'ap',A:r.area.toFixed(2),P:r.perim.toFixed(2),open:op>0?op.toFixed(2):'',S:tyS(ty)};
+    });
+    FL.name=t?t.title:CAD.name;FL.n=t&&t.repeat>1?String(t.repeat):'';
+    flSave();fillFloorInputs();renderFloor();
+    info.innerHTML=`✅ 已匯入「${esc(FL.name)}」：${ok.length} 間房間，已依房間類型套上預設做法。`
+      +(bad.length?`<br>⚠ 沒圍起來、沒算到：${bad.map(esc).join('、')}（可用「新增房間」手動補）`:'')
+      +'<br>到下面「依房間類型選磁磚」一次換地磚、壁磚。門窗以門高 2.1m、窗高 1.5m 扣除。';
+  }catch(err){console.error(err);info.textContent='分析失敗：'+err.message}
 }
 fillFloorInputs();renderSaved();
 
