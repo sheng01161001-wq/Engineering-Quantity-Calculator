@@ -1,5 +1,5 @@
 // 工程數量計算機 離線快取。更新內容時把版本號 +1。
-const CACHE = 'qcalc-v39';
+const CACHE = 'qcalc-v40';
 const FILES = ['./', './index.html', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './apple-touch-icon.png', './logo.png'];
 self.addEventListener('install', e => {
@@ -13,6 +13,7 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  if (url.pathname.indexOf('/daily-report/') >= 0) return;   // 施工日報表產生器有自己的離線快取，計算機不要管
   // 頁面：先抓網路（拿到最新版），沒網路才用快取
   if (req.mode === 'navigate') {
     e.respondWith(fetch(req).then(r => {

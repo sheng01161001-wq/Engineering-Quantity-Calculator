@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f3a5f">
+<title>施工日報表產生器</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root { --navy: #1f3a5f; --coral: #ff6b5b; --bg: #f3f5f8; --line: #d5dbe3; --muted: #66707c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, "Microsoft JhengHei", "PingFang TC", sans-serif; background: var(--bg); color: #1d232b; font-size: 16px; }
+  header { background: var(--navy); color: #fff; padding: 14px 16px calc(14px); position: sticky; top: 0; z-index: 5; }
+  header h1 { margin: 0; font-size: 19px; }
+  header small { opacity: .75; }
+  main { padding: 12px; max-width: 720px; margin: 0 auto; padding-bottom: 120px; }
+  .card { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h2 { font-size: 16px; margin: 0 0 10px; color: var(--navy); display: flex; justify-content: space-between; align-items: center; }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
+  input, textarea, select { width: 100%; font-size: 16px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; background: #fff; }
+  textarea { resize: vertical; }
+  #log { min-height: 220px; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  button { font-size: 16px; font-family: inherit; border: 0; border-radius: 10px; padding: 12px 14px; cursor: pointer; }
+  .btn { background: var(--navy); color: #fff; }
+  .btn.main { background: var(--coral); font-weight: bold; }
+  .btn.ghost { background: #e7ecf2; color: var(--navy); }
+  .btn.small { padding: 6px 10px; font-size: 14px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { flex: 1; border-radius: 0; background: #fff; color: #333; padding: 10px 0; }
+  .seg button.on { background: var(--navy); color: #fff; }
+  .wx { display: grid; grid-template-columns: 44px 1fr; gap: 8px; align-items: center; margin-top: 6px; }
+  .wx span { font-size: 14px; color: var(--muted); }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--line); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); display: flex; gap: 10px; z-index: 5; }
+  .bar button { flex: 1; }
+  .preview { font-size: 14px; line-height: 1.6; }
+  .preview table { width: 100%; border-collapse: collapse; margin: 6px 0; }
+  .preview td, .preview th { border-bottom: 1px solid #eef1f4; padding: 4px 6px; text-align: left; }
+  .preview th { color: var(--muted); font-weight: normal; }
+  .preview td.n { text-align: right; white-space: nowrap; }
+  .warn { background: #fff4e5; color: #8a4b00; border-radius: 8px; padding: 8px 10px; margin-top: 8px; font-size: 14px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .days { display: flex; flex-wrap: wrap; gap: 8px; }
+  .day { display: inline-flex; align-items: center; background: #e7ecf2; border-radius: 18px; overflow: hidden; }
+  .day button { background: transparent; padding: 7px 10px; font-size: 14px; border-radius: 0; color: var(--navy); }
+  .day button.x { color: #b33; padding-left: 4px; }
+  .day.cur { background: var(--navy); }
+  .day.cur button { color: #fff; }
+  details summary { cursor: pointer; font-weight: bold; color: var(--navy); }
+  #toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: rgba(20,25,35,.92); color: #fff; padding: 10px 16px; border-radius: 20px; font-size: 15px; display: none; z-index: 10; max-width: 90%; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>施工日報表產生器</h1>
+  <small>貼上 LINE 機器人的日誌 → 產生日報表 Excel</small>
+</header>
+<main>
+  <div class="card">
+    <h2>日誌 <button class="btn ghost small" id="pasteBtn">📋 貼上</button></h2>
+    <label for="date">日期（貼上日誌會自動抓）</label>
+    <input type="date" id="date">
+    <label for="log">日誌內容</label>
+    <textarea id="log" placeholder="把機器人產生的日誌整段貼在這裡，例如：&#10;【冀晨】2026/11/17（二）施工日誌&#10;定晨_水電*5工：&#10;1、B2F牆面配管&#10;&#10;國產_混凝土：&#10;1、3000 PSI 30m3"></textarea>
+
+    <label>天氣</label>
+    <div class="wx"><span>上午</span><div class="seg" data-wx="am"><button>晴</button><button>陰</button><button>雨</button></div></div>
+    <div class="wx"><span>下午</span><div class="seg" data-wx="pm"><button>晴</button><button>陰</button><button>雨</button></div></div>
+
+    <label for="machines">施工機具（選填，例：挖土機 1台、山貓 2台）</label>
+    <textarea id="machines" rows="2"></textarea>
+    <label for="notes">重要記事（選填，一行一筆；之後每天的日報都會保留）</label>
+    <textarea id="notes" rows="2"></textarea>
+  </div>
+
+  <div class="card">
+    <h2>預覽</h2>
+    <div id="preview" class="preview muted">貼上日誌後這裡會顯示整理結果。</div>
+  </div>
+
+  <div class="card">
+    <h2>已存的日子 <span class="muted" id="monthLabel"></span></h2>
+    <div class="days" id="days"></div>
+    <p class="muted">點日期可以叫出來修改。累計會接續前面存過的每一天（跨月也會接）。</p>
+  </div>
+
+  <div class="card">
+    <details id="setBox">
+      <summary>工程設定</summary>
+      <label for="sProject">工程名稱（日報表「工程名稱」欄，也用在檔名）</label>
+      <input id="sProject" placeholder="例：御品開發 冀晨 集合住宅大樓新建工程">
+      <label for="sShort">檔名用的簡稱</label>
+      <input id="sShort" placeholder="例：冀晨">
+      <div class="row">
+        <div><label for="sStart">開工日期</label><input type="date" id="sStart"></div>
+        <div><label for="sPlan">預定工期（天）</label><input type="number" id="sPlan" inputmode="numeric"></div>
+      </div>
+      <label for="sWx">沒填天氣時預設</label>
+      <select id="sWx"><option>晴</option><option>陰</option><option>雨</option></select>
+      <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+      <p class="muted">資料只存在這支手機的瀏覽器裡。換手機或清除瀏覽器資料前，先按「下載備份」。</p>
+      <div class="row">
+        <button class="btn ghost" id="backupBtn">⬇ 下載備份</button>
+        <button class="btn ghost" id="restoreBtn">⬆ 還原備份</button>
+      </div>
+      <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+    </details>
+  </div>
+  <p class="muted" style="text-align:center">版本 v1</p>
+</main>
+
+<div class="bar">
+  <button class="btn main" id="makeBtn">💾 產生 Excel</button>
+  <button class="btn" id="shareBtn">📤 傳到 LINE</button>
+</div>
+<div id="toast"></div>
+
+<script src="jszip.min.js"></script>
+<script src="core.js"></script>
+<script src="xlsx.js"></script>
+<script>
+'use strict';
+const KEY = 'dailyReport.v1';
+const $ = id => document.getElementById(id);
+let DB = load();
+let lastFile = null, lastSig = '';   // 最近產生的 Excel（給分享用）
+
+function load() {
+  try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); if (d && d.days) return d; } catch (e) {}
+  return { settings: { weather: '晴' }, days: {} };
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(DB)); }
+function toast(msg, ms) { const t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => { t.style.display = 'none'; }, ms || 2500); }
+const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ===== 天氣按鈕 =====
+const wx = { am: '', pm: '' };
+function setWx(k, v) { wx[k] = v; document.querySelectorAll('.seg[data-wx="' + k + '"] button').forEach(b => b.classList.toggle('on', b.textContent === v)); }
+document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  setWx(seg.dataset.wx, e.target.textContent); refresh();
+}));
+
+// ===== 表單 ↔ 資料 =====
+function currentRec() {
+  return { log: $('log').value, weatherAm: wx.am, weatherPm: wx.pm, machines: $('machines').value, notes: $('notes').value };
+}
+let shownDay = '';   // 表單目前顯示的是哪一天存的資料
+function showRec(day) {
+  shownDay = day;
+  const r = DB.days[day] || {};
+  $('log').value = r.log || '';
+  $('machines').value = r.machines || '';
+  $('notes').value = r.notes || '';
+  const def = DB.settings.weather || '晴';
+  setWx('am', r.weatherAm || def); setWx('pm', r.weatherPm || def);
+}
+function onLogChange() {
+  const p = DRCore.parseLog($('log').value, $('date').value || todayStr());
+  if (p.date && p.date !== $('date').value) $('date').value = p.date;
+  if (p.weather) { setWx('am', p.weather.am); setWx('pm', p.weather.pm); }
+  refresh();
+}
+$('log').addEventListener('input', onLogChange);
+['machines', 'notes'].forEach(id => $(id).addEventListener('input', refresh));
+$('date').addEventListener('change', () => {
+  const d = $('date').value;
+  const prev = DB.days[shownDay];
+  const untouched = prev && JSON.stringify(currentRec()) === JSON.stringify(prev);
+  if (DB.days[d] || untouched) showRec(d);   // 沒改過的舊資料不要帶到新日期
+  else shownDay = d;
+  refresh();
+});
+$('pasteBtn').addEventListener('click', async () => {
+  try {
+    const t = await navigator.clipboard.readText();
+    if (!t.trim()) return toast('剪貼簿是空的');
+    $('log').value = t; onLogChange();
+  } catch (e) { toast('不能自動貼上，請長按文字框選「貼上」'); $('log').focus(); }
+});
+
+// ===== 預覽 =====
+function refresh() {
+  const day = $('date').value;
+  renderDays();
+  if (!day) { $('preview').innerHTML = '<span class="muted">請選日期。</span>'; return; }
+  const days = Object.assign({}, DB.days, { [day]: currentRec() });
+  const r = DRCore.buildDay(day, days, settingsObj());
+  const p = r.parsed, c = r.cells;
+  let h = '';
+  const L = DRCore.LAYOUT;
+  const trades = [];
+  for (let i = 0; i < L.trades.rows; i++) { const row = L.trades.start + i; if (c['B' + row]) trades.push([c['B' + row], c['C' + row], c['F' + row]]); }
+  const td = trades.filter(t => t[1] !== '');
+  if (td.length) {
+    h += '<b>出工</b>（今日合計 ' + Math.round(td.reduce((a, t) => a + Number(t[1]), 0) * 100) / 100 + ' 工）<table><tr><th>工項</th><th class="n">今日</th><th class="n">累計</th></tr>' +
+      td.map(t => '<tr><td>' + esc(t[0]) + '</td><td class="n">' + t[1] + '</td><td class="n">' + t[2] + '</td></tr>').join('') + '</table>';
+  } else h += '<div class="muted">今天沒有出工資料</div>';
+  const qty = (start, rows, title) => {
+    const list = [];
+    for (let i = 0; i < rows; i++) { const row = start + i; if (c['H' + row] && c['K' + row] !== '') list.push([c['H' + row], c['K' + row], c['J' + row], c['M' + row]]); }
+    if (list.length) h += '<b>' + title + '</b><table><tr><th>名稱</th><th class="n">今日</th><th class="n">累計</th></tr>' +
+      list.map(x => '<tr><td>' + esc(x[0]) + '</td><td class="n">' + x[1] + ' ' + esc(x[2]) + '</td><td class="n">' + x[3] + '</td></tr>').join('') + '</table>';
+  };
+  qty(L.mats.start, L.mats.rows, '進場材料');
+  qty(L.machs.start, L.machs.rows, '施工機具');
+  const rough = []; for (let i = 0; i < L.rough.rows; i++) { const v = c[L.rough.col + (L.rough.start + i)]; if (v) rough.push(v); }
+  if (rough.length) h += '<b>粗工報表</b><div>' + rough.map(esc).join('<br>') + '</div>';
+  h += '<div class="muted" style="margin-top:6px">天氣：上午' + (wx.am || '-') + '、下午' + (wx.pm || '-') +
+    (DB.settings.startDate ? '｜開工第 ' + c.P5 + ' 天' : '｜（工程設定還沒填開工日期）') + '</div>';
+  const warns = r.warnings.slice();
+  if (!p.entries.length && $('log').value.trim()) warns.push('找不到「廠商_工種*人數工：」這種標題，請確認貼的是機器人整理好的日誌');
+  if (warns.length) h += '<div class="warn">⚠️ ' + warns.map(esc).join('<br>⚠️ ') + '</div>';
+  $('preview').innerHTML = h;
+  $('preview').classList.remove('muted');
+}
+
+// ===== 已存的日子 =====
+function renderDays() {
+  const day = $('date').value || todayStr(), ym = day.slice(0, 7);
+  $('monthLabel').textContent = Number(ym.slice(0, 4)) + ' 年 ' + Number(ym.slice(5)) + ' 月';
+  const list = Object.keys(DB.days).filter(d => d.slice(0, 7) === ym).sort();
+  $('days').innerHTML = list.length ? list.map(d =>
+    '<span class="day' + (d === $('date').value ? ' cur' : '') + '"><button data-d="' + d + '">' + Number(d.slice(5, 7)) + '/' + Number(d.slice(8)) + '</button><button class="x" data-del="' + d + '">✕</button></span>').join('')
+    : '<span class="muted">這個月還沒有存</span>';
+}
+$('days').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.d) { $('date').value = b.dataset.d; showRec(b.dataset.d); refresh(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  if (b.dataset.del) {
+    const d = b.dataset.del;
+    if (!confirm('確定刪除 ' + d.replace(/-/g, '/') + ' 的日誌？刪掉後累計會重算，無法復原（除非有備份）。')) return;
+    delete DB.days[d]; save(); refresh(); toast('已刪除 ' + d.replace(/-/g, '/'));
+  }
+});
+
+// ===== 設定 =====
+function settingsObj() { return { projectName: DB.settings.projectName || '', startDate: DB.settings.startDate || '', plannedDays: DB.settings.plannedDays || '', weather: DB.settings.weather || '晴' }; }
+function showSettings() {
+  const s = DB.settings;
+  $('sProject').value = s.projectName || ''; $('sShort').value = s.short || '';
+  $('sStart').value = s.startDate || ''; $('sPlan').value = s.plannedDays || ''; $('sWx').value = s.weather || '晴';
+}
+[['sProject', 'projectName'], ['sShort', 'short'], ['sStart', 'startDate'], ['sPlan', 'plannedDays'], ['sWx', 'weather']].forEach(([id, k]) => {
+  $(id).addEventListener('change', () => { DB.settings[k] = $(id).value.trim(); save(); refresh(); });
+});
+
+// ===== 產生 Excel =====
+let TPL = null;
+async function template() {
+  if (TPL) return TPL;
+  const r = await fetch('template.xlsx');
+  if (!r.ok) throw new Error('讀不到日報表範本');
+  return (TPL = await r.arrayBuffer());
+}
+function sigNow() { return JSON.stringify([$('date').value, currentRec(), DB.settings]); }
+async function makeExcel() {
+  const day = $('date').value;
+  if (!day) { toast('請先選日期'); return null; }
+  if (!$('log').value.trim() && !DB.days[day]) { toast('請先貼上日誌'); return null; }
+  DB.days[day] = currentRec(); shownDay = day; save();
+  const ym = day.slice(0, 7);
+  const list = Object.keys(DB.days).filter(d => d.slice(0, 7) === ym).sort().reverse();   // 最新的一天放第一頁
+  const sheets = list.map(d => { const r = DRCore.buildDay(d, DB.days, settingsObj()); return { name: DRCore.tabName(d), cells: r.cells, bold: r.bold }; });
+  const blob = await DRXlsx.buildWorkbook(await template(), sheets, DRCore.excelSerial);
+  const name = (DB.settings.short || '') + '施工日報表' + Number(ym.slice(0, 4)) + '.' + Number(ym.slice(5)) + '月.xlsx';
+  lastFile = new File([blob], name, { type: blob.type }); lastSig = sigNow();
+  refresh();
+  return lastFile;
+}
+function download(file) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file); a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+$('makeBtn').addEventListener('click', async () => {
+  try {
+    const f = await makeExcel(); if (!f) return;
+    download(f); toast('已存檔，下載 ' + f.name);
+  } catch (e) { console.error(e); toast('產生失敗：' + e.message, 5000); }
+});
+$('shareBtn').addEventListener('click', async () => {
+  try {
+    const f = (lastFile && lastSig === sigNow()) ? lastFile : await makeExcel(); if (!f) return;
+    if (navigator.canShare && navigator.canShare({ files: [f] })) await navigator.share({ files: [f], title: f.name });
+    else { download(f); toast('這個瀏覽器不能直接分享，已改成下載'); }
+  } catch (e) {
+    if (e.name === 'NotAllowedError') toast('Excel 已準備好，請再按一次「傳到 LINE」');   // iPhone：產生檔案花了時間，要再點一次
+    else if (e.name !== 'AbortError') { console.error(e); toast('分享失敗：' + e.message, 5000); }
+  }
+});
+
+// ===== 備份 =====
+$('backupBtn').addEventListener('click', () => {
+  download(new File([JSON.stringify(DB, null, 1)], '施工日報備份_' + todayStr() + '.json', { type: 'application/json' }));
+});
+$('restoreBtn').addEventListener('click', () => $('restoreFile').click());
+$('restoreFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!d || !d.days || typeof d.days !== 'object' || Object.keys(d.days).some(k => !/^\d{4}-\d{2}-\d{2}$/.test(k))) throw new Error('不是這個程式的備份檔');
+    const n = Object.keys(d.days).length;
+    if (!confirm('還原會用備份檔（' + n + ' 天）取代現在手機裡的全部資料，確定嗎？')) return;
+    DB = { settings: d.settings || {}, days: d.days }; save();
+    showSettings(); showRec($('date').value); refresh(); toast('已還原 ' + n + ' 天');
+  } catch (err) { toast('還原失敗：' + err.message, 4000); }
+});
+
+// ===== 開始 =====
+$('date').value = todayStr();
+showSettings(); showRec($('date').value); refresh();
+if (!DB.settings.projectName) $('setBox').open = true;
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
