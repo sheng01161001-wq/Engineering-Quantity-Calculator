@@ -100,6 +100,11 @@
       <label for="sWx">沒填天氣時預設</label>
       <select id="sWx"><option>晴</option><option>陰</option><option>雨</option></select>
       <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+      <p class="muted">已經開工的工地：選之前的日報表 Excel（最後一份就好），程式會讀最後一天的累計，之後每天接著往上加。</p>
+      <button class="btn ghost" id="importBtn" style="width:100%">📥 匯入舊日報表</button>
+      <input type="file" id="importFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+      <div id="baseInfo" class="muted" style="margin-top:8px"></div>
+      <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
       <p class="muted">資料只存在這支手機的瀏覽器裡。換手機或清除瀏覽器資料前，先按「下載備份」。</p>
       <div class="row">
         <button class="btn ghost" id="backupBtn">⬇ 下載備份</button>
@@ -108,7 +113,7 @@
       <input type="file" id="restoreFile" accept=".json,application/json" hidden>
     </details>
   </div>
-  <p class="muted" style="text-align:center">版本 v1</p>
+  <p class="muted" style="text-align:center">版本 v2</p>
 </main>
 
 <div class="bar">
@@ -238,12 +243,36 @@ $('days').addEventListener('click', e => {
 });
 
 // ===== 設定 =====
-function settingsObj() { return { projectName: DB.settings.projectName || '', startDate: DB.settings.startDate || '', plannedDays: DB.settings.plannedDays || '', weather: DB.settings.weather || '晴' }; }
+function settingsObj() { return { projectName: DB.settings.projectName || '', startDate: DB.settings.startDate || '', plannedDays: DB.settings.plannedDays || '', weather: DB.settings.weather || '晴', base: DB.base || null }; }
 function showSettings() {
   const s = DB.settings;
   $('sProject').value = s.projectName || ''; $('sShort').value = s.short || '';
   $('sStart').value = s.startDate || ''; $('sPlan').value = s.plannedDays || ''; $('sWx').value = s.weather || '晴';
+  const b = DB.base;
+  $('baseInfo').innerHTML = b ? '✅ 已匯入 ' + b.date.replace(/-/g, '/') + ' 的累計（工項 ' + b.trades.length + ' 項、材料 ' + b.mats.length + ' 項、機具 ' + b.machs.length + ' 項、記事 ' + b.notes.length + ' 筆）。' +
+    (b.date.replace(/-/g, '/')) + ' 以前存的日誌不會再算進累計。 <button class="btn ghost small" id="baseClear">取消匯入</button>' : '';
 }
+$('importBtn').addEventListener('click', () => $('importFile').click());
+$('importFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const r = DRCore.parseOldReport(await DRXlsx.readWorkbook(await f.arrayBuffer()), f.name);
+    const b = r.base, top = b.trades.filter(t => t.cum).map(t => t.name + ' ' + t.cum).slice(0, 6).join('、');
+    const msg = '讀到「' + r.sheetName + '」（' + b.date.replace(/-/g, '/') + '）這頁：\n' +
+      '工項 ' + b.trades.length + ' 項' + (top ? '（' + top + (b.trades.filter(t => t.cum).length > 6 ? '…' : '') + '）' : '') + '\n' +
+      '材料 ' + b.mats.length + ' 項、機具 ' + b.machs.length + ' 項、重要記事 ' + b.notes.length + ' 筆\n\n' +
+      '之後的累計會從這天接下去算' + (DB.base ? '（會取代上次匯入的）' : '') + '。確定匯入？';
+    if (!confirm(msg)) return;
+    DB.base = b;
+    Object.keys(r.settings).forEach(k => { if (!DB.settings[k]) DB.settings[k] = r.settings[k]; });   // 設定沒填的才帶入
+    save(); showSettings(); refresh(); toast('已匯入 ' + b.date.replace(/-/g, '/') + ' 的累計');
+  } catch (err) { console.error(err); toast('匯入失敗：' + err.message, 6000); }
+});
+$('baseInfo').addEventListener('click', e => {
+  if (e.target.id !== 'baseClear') return;
+  if (!confirm('取消匯入後，累計會改回只算這支手機存的日誌。確定？')) return;
+  delete DB.base; save(); showSettings(); refresh(); toast('已取消匯入');
+});
 [['sProject', 'projectName'], ['sShort', 'short'], ['sStart', 'startDate'], ['sPlan', 'plannedDays'], ['sWx', 'weather']].forEach(([id, k]) => {
   $(id).addEventListener('change', () => { DB.settings[k] = $(id).value.trim(); save(); refresh(); });
 });
@@ -306,7 +335,7 @@ $('restoreFile').addEventListener('change', async e => {
     if (!d || !d.days || typeof d.days !== 'object' || Object.keys(d.days).some(k => !/^\d{4}-\d{2}-\d{2}$/.test(k))) throw new Error('不是這個程式的備份檔');
     const n = Object.keys(d.days).length;
     if (!confirm('還原會用備份檔（' + n + ' 天）取代現在手機裡的全部資料，確定嗎？')) return;
-    DB = { settings: d.settings || {}, days: d.days }; save();
+    DB = { settings: d.settings || {}, days: d.days }; if (d.base && d.base.date && ['trades', 'mats', 'machs', 'notes'].every(k => Array.isArray(d.base[k]))) DB.base = d.base; save();
     showSettings(); showRec($('date').value); refresh(); toast('已還原 ' + n + ' 天');
   } catch (err) { toast('還原失敗：' + err.message, 4000); }
 });

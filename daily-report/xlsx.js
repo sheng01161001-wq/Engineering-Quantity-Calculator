@@ -188,5 +188,42 @@
     return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', compression: 'DEFLATE' });
   }
 
-  root.DRXlsx = { buildWorkbook };
+  /** 讀 xlsx：回傳 [{name, cells: {A1: 值}}]（公式取存檔時算好的結果；日期是 Excel 序號數字） */
+  async function readWorkbook(buf) {
+    const zip = await JSZip.loadAsync(buf);
+    const read = async p => zip.file(p) ? parse(await zip.file(p).async('string')) : null;
+    const wb = await read('xl/workbook.xml');
+    if (!wb) throw new Error('這不是 Excel（.xlsx）檔');
+    const rels = await read('xl/_rels/workbook.xml.rels');
+    const target = {};
+    Array.prototype.forEach.call(rels.getElementsByTagNameNS(PKG_NS, 'Relationship'), r => {
+      const t = r.getAttribute('Target');
+      target[r.getAttribute('Id')] = t.charAt(0) === '/' ? t.slice(1) : 'xl/' + t;
+    });
+    const ssDoc = await read('xl/sharedStrings.xml');
+    const shared = ssDoc ? Array.prototype.map.call(ssDoc.getElementsByTagNameNS(NS, 'si'),
+      si => Array.prototype.map.call(si.getElementsByTagNameNS(NS, 't'), t => t.textContent).join('')) : [];
+    const out = [];
+    for (const s of Array.prototype.slice.call(wb.getElementsByTagNameNS(NS, 'sheet'))) {
+      const rid = s.getAttributeNS(REL_NS, 'id') || s.getAttribute('r:id');
+      const doc = await read(target[rid]);
+      if (!doc) continue;
+      const cells = {};
+      Array.prototype.forEach.call(doc.getElementsByTagNameNS(NS, 'c'), c => {
+        const t = c.getAttribute('t'), v = kids(c, 'v')[0];
+        let val;
+        if (t === 'inlineStr') val = Array.prototype.map.call(c.getElementsByTagNameNS(NS, 't'), x => x.textContent).join('');
+        else if (!v) return;
+        else if (t === 's') val = shared[Number(v.textContent)];
+        else if (t === 'str' || t === 'e') val = v.textContent;
+        else if (t === 'b') val = v.textContent === '1';
+        else val = Number(v.textContent);
+        if (val !== '' && val !== undefined) cells[c.getAttribute('r')] = val;
+      });
+      out.push({ name: s.getAttribute('name'), cells: cells });
+    }
+    return out;
+  }
+
+  root.DRXlsx = { buildWorkbook, readWorkbook };
 })(this);

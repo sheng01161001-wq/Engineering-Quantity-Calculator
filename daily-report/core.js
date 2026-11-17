@@ -194,7 +194,9 @@
    */
   function buildDay(day, days, settings) {
     settings = settings || {};
-    const dates = Object.keys(days).filter(d => d <= day).sort();
+    // 匯入的舊日報表：那天以前的累計當起點，只接著算那天之後存的日子
+    const base = settings.base && settings.base.date < day ? settings.base : null;
+    const dates = Object.keys(days).filter(d => d <= day && (!base || d > base.date)).sort();
     const parsed = {};
     dates.forEach(d => { parsed[d] = parseDayCached(days[d], d); });
     const p = parsed[day] || parseDay({}, day);
@@ -218,6 +220,7 @@
 
     // 出工：工項依「第一次出現的日期」由上往下排，每天位置固定；累計＝到今天為止每日人數總和
     const order = [], cum = {};
+    if (base) base.trades.forEach(t => { if (order.indexOf(t.name) < 0) order.push(t.name); cum[t.name] = (cum[t.name] || 0) + t.cum; });
     dates.forEach(d => parsed[d].entries.forEach(e => {
       if (order.indexOf(e.item) < 0) order.push(e.item);
       cum[e.item] = (cum[e.item] || 0) + e.n;
@@ -235,10 +238,12 @@
     if (order.length > T.rows) p.warnings.push('工項超過 ' + T.rows + ' 種，多的沒有列出');
 
     // 材料（含混凝土）、機具：本日＋累計
-    const fillQty = (start, rows, key, label) => {
+    const fillQty = (start, rows, key, label, baseList) => {
       const ord = [], unit = {}, sum = {}, td = {};
+      (baseList || []).forEach(x => { if (ord.indexOf(x.name) < 0) { ord.push(x.name); unit[x.name] = x.unit; } sum[x.name] = (sum[x.name] || 0) + x.cum; });
       dates.forEach(d => parsed[d][key].forEach(x => {
-        if (ord.indexOf(x.name) < 0) { ord.push(x.name); unit[x.name] = x.unit; }
+        if (ord.indexOf(x.name) < 0) ord.push(x.name);
+        if (!unit[x.name]) unit[x.name] = x.unit;
         sum[x.name] = (sum[x.name] || 0) + x.qty;
         if (d === day) td[x.name] = (td[x.name] || 0) + x.qty;
       }));
@@ -251,8 +256,8 @@
       if (ord.length > rows) p.warnings.push(label + '超過 ' + rows + ' 種，多的沒有列出');
     };
     dates.forEach(d => { parsed[d].allMats = parsed[d].concrete.concat(parsed[d].materials); });
-    fillQty(LAYOUT.mats.start, LAYOUT.mats.rows, 'allMats', '材料');
-    fillQty(LAYOUT.machs.start, LAYOUT.machs.rows, 'machines', '機具');
+    fillQty(LAYOUT.mats.start, LAYOUT.mats.rows, 'allMats', '材料', base && base.mats);
+    fillQty(LAYOUT.machs.start, LAYOUT.machs.rows, 'machines', '機具', base && base.machs);
 
     // 本日施工概要：每家廠商一段，標題粗體「定晨_水電x5工：」，底下「1、…」
     const blocks = p.entries.filter(e => !isRough(e)).map(e => ({ head: e.vendor + '_' + (e.trade || '') + 'x' + fmtN(e.n) + '工：', items: e.items }));
@@ -281,7 +286,7 @@
       roughOrder.map(v => v + ' ' + fmtN(rough[v]) + ' 工：' + roughWork[v].join('、')));
 
     // 重要記事：到今天為止全部保留（日期＋內容）
-    const notes = [];
+    const notes = base ? base.notes.slice() : [];
     dates.forEach(d => parsed[d].notes.forEach(n => notes.push(slashDate(d) + ' ' + n)));
     fillRows(c, LAYOUT.notes.col, LAYOUT.notes.start, LAYOUT.notes.rows, packLines(notes, LAYOUT.notes.rows));
 
@@ -308,7 +313,49 @@
     return p;
   }
 
-  const api = { parseLog, parseDay, parseQtyItems, parseWeather, buildDay, mapTrade, concreteName, excelSerial, tabName, LAYOUT, toHalf };
+  // ===== 匯入舊日報表 =====
+  const fromSerial = n => { const d = new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000); return ymd(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()); };
+  /** 儲存格的日期：Excel 序號、「2026年11月17日」、「2026/11/17」、民國「115/11/17」 */
+  function anyDate(v) {
+    if (typeof v === 'number' && v > 20000 && v < 80000) return fromSerial(v);
+    const m = toHalf(v).match(/(\d{2,4})\s*[\/.\-年]\s*(\d{1,2})\s*[\/.\-月]\s*(\d{1,2})/);
+    if (!m) return '';
+    const y = Number(m[1]) < 1000 ? Number(m[1]) + 1911 : Number(m[1]);
+    return ymd(y, Number(m[2]), Number(m[3]));
+  }
+  /**
+   * sheets：readWorkbook 讀出來的 [{name, cells}]
+   * 找日期最新的那一頁，取出累計當起點。回傳 {base, settings, sheetName} 或丟出錯誤
+   */
+  function parseOldReport(sheets, fileName) {
+    const yearHint = (String(fileName || '').match(/(20\d\d)/) || [])[1] || String(new Date().getFullYear());
+    let best = null;
+    sheets.forEach(sh => {
+      let d = anyDate(sh.cells.L6);
+      if (!d) { const m = String(sh.name).match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/); if (m) d = ymd(yearHint, Number(m[1]), Number(m[2])); }
+      if (d && (!best || d > best.date)) best = { date: d, sh: sh };
+    });
+    if (!best) throw new Error('找不到日報的日期（「日期」那格是空的，分頁名稱也不是「11月17日」這種）。請選有填過資料的日報表。');
+    const c = best.sh.cells;
+    const str = a => c[a] === undefined || c[a] === null ? '' : String(c[a]).trim();
+    const n = a => { const v = Number(c[a]); return isFinite(v) ? round2(v) : 0; };
+    const base = { date: best.date, trades: [], mats: [], machs: [], notes: [] };
+    const T = LAYOUT.trades;
+    for (let r = T.start; r < T.start + T.rows; r++) if (str('B' + r)) base.trades.push({ name: str('B' + r), cum: n('F' + r) });
+    for (let r = LAYOUT.mats.start; r < LAYOUT.mats.start + LAYOUT.mats.rows; r++) if (str('H' + r)) base.mats.push({ name: str('H' + r), unit: str('J' + r), cum: n('M' + r) });
+    for (let r = LAYOUT.machs.start; r < LAYOUT.machs.start + LAYOUT.machs.rows; r++) if (str('H' + r)) base.machs.push({ name: str('H' + r), unit: str('J' + r), cum: n('M' + r) });
+    const noteEnd = /交辦/.test(str('A64')) ? 63 : LAYOUT.notes.start + LAYOUT.notes.rows - 1;   // 舊版範本 64 列以後是交辦事項
+    for (let r = LAYOUT.notes.start; r <= noteEnd; r++) if (str('B' + r)) base.notes.push(str('B' + r));
+    if (!base.trades.some(t => t.cum) && !base.mats.some(x => x.cum) && !base.machs.some(x => x.cum) && !base.notes.length)
+      throw new Error('這份日報表（' + best.sh.name + '）沒有任何累計數字，看起來是空白表。請選有填過資料的日報表。');
+    const settings = {};
+    if (str('C5') && str('C5') !== '新建工程') settings.projectName = str('C5');
+    if (anyDate(c.C6)) settings.startDate = anyDate(c.C6);
+    if (n('O5') > 0) settings.plannedDays = String(n('O5'));
+    return { base: base, settings: settings, sheetName: best.sh.name };
+  }
+
+  const api = { parseOldReport, anyDate, parseLog, parseDay, parseQtyItems, parseWeather, buildDay, mapTrade, concreteName, excelSerial, tabName, LAYOUT, toHalf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DRCore = api;
 })(this);
